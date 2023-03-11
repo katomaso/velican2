@@ -1,0 +1,5 @@
+# wheel
+psycopg2
+django
+django-allauth
+django-admin-tools
