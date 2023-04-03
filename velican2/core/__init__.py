@@ -1,3 +1,3 @@
 import logging
 
-logger = logging.getLogger("velican2")
+logger = logging.getLogger("velican2.core")

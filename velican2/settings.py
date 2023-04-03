@@ -78,10 +78,8 @@ DATABASES = {
     }
 }
 
-PELICAN = {
-    'CONTENT_PATH': Path(os.getenv("VELICAN_CONTENT_PATH", "/var/velican/")),
-    'OUTPUT_PATH': Path(os.getenv("PELICAN_OUTPUT_PATH", "/var/www/")),
-}
+PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", "/var/pelican/"))
+PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", "/var/www/"))
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
