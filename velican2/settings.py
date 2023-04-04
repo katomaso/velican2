@@ -13,11 +13,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-kc&*_e&xhmmgv+19i$(dpanf-iz69n%w)c+f1hb(u1)b(1bwu%'
+SECRET_KEY = os.getenv("VELICAN_SECRET", 'verysecret')
 
-DEBUG = os.getenv("VELICAN_DEBUG", "False").lower() in ("1", "true", "yes")
+DEBUG = os.getenv("VELICAN_DEBUG", "True").lower() in ("1", "true", "yes")
 
-ALLOWED_HOSTS = [os.getenv("VELICAN_HOST", "localhost:8000"), ]
+ALLOWED_HOSTS = [os.getenv("VELICAN_HOST", "localhost"), ]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.linkedin_oauth2',
 
     'velican2.core',
+    'velican2.pelican',
 ]
 
 MIDDLEWARE = [
@@ -78,8 +79,8 @@ DATABASES = {
     }
 }
 
-PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", "/var/pelican/"))
-PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", "/var/www/"))
+PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "runtime/pelican/"))
+PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", BASE_DIR / "runtime/www/"))
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -110,13 +111,12 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/4.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'cs-cz'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Prague'
 
 USE_I18N = True
 
@@ -133,7 +133,6 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
 
 LOGGING = {
     'version': 1,
