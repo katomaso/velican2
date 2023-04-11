@@ -2,9 +2,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from django.db import models
+from django.conf import settings
 from django.contrib import auth
 from django.contrib.auth import models as auth
-from django.core.validators import validate_unicode_slug
+from django.core.validators import validate_unicode_slug, RegexValidator
 from django.utils.translation import gettext as _
 
 class UpdateException(Exception):
@@ -15,16 +16,20 @@ LANG_CHOICES = (
     ("en_US", "en"),
 )
 
+
 class Site(models.Model):
-    domain = models.CharField(max_length=32, db_index=True, validators=(validate_unicode_slug,))
-    path = models.CharField(max_length=32, null=True, validators=(validate_unicode_slug,))
+    domain = models.CharField(max_length=32, db_index=True, help_text="Example: example.com", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+\.?)+$'), ))
+    path = models.CharField(max_length=32, default="", blank=True, help_text="Fill only if your site is under a path (e.g. \"/blog\")", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+/?)*$'), ))
     staff = models.ManyToManyField(auth.User)
     lang = models.CharField(max_length=48, choices=LANG_CHOICES)
     timezone = models.CharField(max_length=128, default="Europe/Prague")
 
     title = models.CharField(max_length=128, null=True)
     subtitle = models.CharField(max_length=128, null=True)
-    logo = models.ImageField()
+    logo = models.ImageField(blank=True, null=True, upload_to=lambda self, filename: settings.MEDIA_ROOT / self.domain / self.path.strip("/") / filename)
+
+    allow_crawlers = models.BooleanField(default=True, help_text="Allow search engines to index this page")
+    allow_training = models.BooleanField(default=True, help_text="Allow AI engines to index this page")
 
     engine = models.CharField(max_length=12, null=False,
         choices=(("pelican", "Pelican"), ), default="pelican")
@@ -35,6 +40,8 @@ class Site(models.Model):
         verbose_name = _("Site")
         verbose_name_plural = _("Sites")
         unique_together = [['domain', 'path']]
+
+    __str__ = lambda self: self.domain + self.path
 
     def get_engine(self):
         if self.engine == "pelican":
@@ -48,16 +55,13 @@ class Site(models.Model):
         )
 
     def save(self, **kwargs):
-        if self.domain.startswith("https"):
-            self.domain = self.domain[5:]
-        if self.domain.startswith("http"):
-            self.domain = self.domain[4:]
-        self.domain = self.domain.strip(":/")
-        self.path = self.path.strip("/")
+        self.domain = self.domain.strip(".")
+        if self.path.strip("/"):
+            self.path = "/" + self.path.strip("/")
         super().save(**kwargs)
 
     def absolutize(self, path):
-        return ("https://" if self.secure else "http://") + self.domain + "/" + self.path + "/" + path.lstrip("/")
+        return ("https://" if self.secure else "http://") + self.domain + self.path
 
 
 class Category(models.Model):
@@ -124,7 +128,7 @@ class Page(models.Model):
         return self.site.staff.contains(user)
 
     def save(self, user=None, **kwargs):
-        if not self.can_edit(user):
+        if user and not self.can_edit(user):
             raise PermissionError("You are not a part of staff of the site")
         if self.id:
             prev = Post.objects.get(id=self.id)
@@ -140,6 +144,7 @@ class Post(Page):
     category = models.ForeignKey(Category, null=True, on_delete=models.SET_NULL)
     author = models.ForeignKey(auth.User, null=True, on_delete=models.SET_NULL)
     description = models.TextField()
+    punchline = models.TextField(blank=True, help_text="Punchline for social media. Defaults to description.")
     draft = models.BooleanField(default=True)
 
     class Meta:
@@ -147,9 +152,9 @@ class Post(Page):
         verbose_name_plural = _("Posts")
 
     def save(self, user=None, **kwargs):
-        if not self.can_edit(user):
+        if user and not self.can_edit(user):
             raise PermissionError("You are not a part of staff of the site")
-        if not self.author:
+        if user and not self.author:
             self.author = user
         if self.id:
             prev = Post.objects.get(id=self.id)

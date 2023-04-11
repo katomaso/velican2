@@ -1,19 +1,191 @@
+import io
 import pelican
- 
+import re
+import subprocess
+
+from pathlib import Path
 from datetime import datetime
 from functools import cached_property
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
 from django.utils.translation import gettext as _
 from velican2.core import models as core
+from velican2.pelican import logger
+from pelican.tools import pelican_themes
+
+#
+# HACK: inject different err function so we can actually see errors
+#
+def pelican_themes_err(msg:str, die=None):
+    raise RuntimeError(msg)
+pelican_themes.err = pelican_themes_err
+
+
+class ThemeSource(models.Model):
+    """Git URL to the theme(s) that will be downloaded and if `not multiple` then installed automatically"""
+    url = models.CharField(max_length=256, null=False, primary_key=True)
+    multiple = models.BooleanField(default=False, help_text="Check when the repository contains multiple themes. You cannot install them easily then")
+    updated = models.DateTimeField(null=True, blank=True)
+    log = models.TextField(null=True)
+
+    __str__ = lambda self: self.name
+
+    @property
+    def downloaded(self):
+        return self.path.exists()
+
+    @property
+    def installed(self):
+        return self.themes.count() > 0
+
+    @property
+    def name(self):
+        return re.search(r'/([^/]+)\.git', self.url).group(1)
+
+    @property
+    def path(self):
+        return settings.PELICAN_THEMES / self.name
+
+    def download(self, save=True):
+        if self.downloaded:
+            return True
+        proc = subprocess.Popen(
+            ["git", "clone", "--recurse-submodules", self.url, self.name],
+            cwd=settings.PELICAN_THEMES, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+        if proc.wait() == 0:
+            self.updated = datetime.now()
+            self.log = None
+        else:
+            self.log = proc.stdout.read()
+            logger.debug(self.log)
+        if save:
+            self.save()
+        return proc.poll() == 0
+
+    def update(self, recurse=True, save=True):
+        proc = subprocess.Popen(
+            ["git", "pull",  "--recurse-submodules"],
+            cwd=str(self.path), stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+        if proc.wait() == 0:
+            self.updated = datetime.now()
+            self.log = None
+            if recurse:
+                for theme in self.themes.all():
+                    theme.update()
+        else:
+            self.log = proc.stdout.read()
+            logger.debug(self.log)
+        if save:
+            return self.save()
+        return self.poll() == 0
+
+    def install(self):
+        if self.multiple or self.installed:
+            return None
+        return Theme.objects.create(
+            source=self,
+        ).installed
+
+    def clear(self, save=True):
+        self.path.unlink()
+        self.updated = None
+        self.log = None
+        if save:
+            return self.save()
+
+    def delete(self, **kwargs):
+        self.clear()
+        return super().delete(**kwargs)
+
+    def save(self, **kwargs):
+        if self.url.startswith("https") and not self.url.endswith(".git"):
+            self.url += ".git"
+        if not self.downloaded:
+            self.download(save=False)
+        if self.downloaded and not self.installed:
+            self.install()
+        return super().save(**kwargs)
+
+
+def is_theme(path):
+    return path.is_dir()
+
 
 class Theme(models.Model):
-    name = models.CharField(max_length=32, primary_key=True)
-    path = models.CharField(max_length=256)
+    name = models.CharField(max_length=32, blank=True, primary_key=True, help_text="Must be set explicitely for Multi Theme Source")
+    mapping = models.TextField(help_text="Jinja code to define necessary variables for the theme")
+    installed = models.BooleanField(default=False)
+    updated = models.DateTimeField(auto_now_add=True)
+    log = models.TextField(null=True)
+    source = models.ForeignKey(ThemeSource, on_delete=models.SET_NULL, null=True, related_name="themes")
 
     class Meta:
         verbose_name = _("Theme")
         verbose_name_plural = _("Themes")
+
+    @property
+    def screenshots_jpeg(self):
+        return [io.FileIO(path, mode='r', closefd=True)
+                for path in Path(self.path).iterdir()
+                if str(path).endswith("jpg") or str(path).endswith("jpeg")]
+
+    @property
+    def screenshots_png(self):
+        return [io.FileIO(path, mode='r', closefd=True)
+                for path in self.path.iterdir()
+                if str(path).endswith("png")]
+
+    @property
+    def path(self):
+        if not self.source:
+            raise RuntimeError("Builtin themes have no path")
+        if self.source.multiple:
+            return self.source.path / self.name
+        return self.source.path
+
+    __str__ = lambda self: self.name
+
+    def update(self, save=True):
+        if not self.installed:
+            return
+        try:
+            pelican_themes.install(str(self.path), u=True, v=False)
+            self.updated = datetime.now()
+        except Exception as e:
+            self.log = str(e)
+        if save:
+            self.save()
+
+    def install(self, save=True):
+        if self.installed:
+            return
+        try:
+            pelican_themes.install(str(self.path), v=False)
+            self.installed = True
+        except Exception as e:
+            self.log = str(e)
+        if save:
+            self.save()
+
+    def delete(self, **kwargs):
+        if not self.installed:
+            return
+        try:
+            pelican_themes.remove(self.name, v=False)
+            self.installed = False
+        except Exception as e:
+            self.log = str(e)
+        return super().delete(**kwargs)
+
+    def save(self, **kwargs):
+        if not self.name:
+            self.name = self.source.name
+        if self.source and not is_theme(self.path):
+            raise ValidationError(str(self.path) + " is not a theme directory")
+        self.install(save=False)
+        return super().save(**kwargs)
 
 
 class Settings(models.Model):

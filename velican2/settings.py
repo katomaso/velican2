@@ -79,8 +79,11 @@ DATABASES = {
     }
 }
 
+PELICAN_THEMES = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "pelican-themes/"))
 PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "runtime/pelican/"))
 PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", BASE_DIR / "runtime/www/"))
+
+MEDIA_ROOT = BASE_DIR / "media"
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators

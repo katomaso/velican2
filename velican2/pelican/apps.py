@@ -7,34 +7,56 @@ from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from pathlib import Path
-
+from pelican.tools import pelican_themes
 
 class App(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'velican2.pelican'
 
     def ready(self):
+        if not settings.PELICAN_THEMES.is_dir():
+            settings.PELICAN_THEMES.mkdir(exist_ok=True)
+
+        # prefill Themes tables with builtin themes (into Pelican)
+        if "migrat" not in settings.SUBCOMMAND:
+            Theme = self.get_model("Theme")
+            for (theme, _) in pelican_themes.themes():
+                Theme.objects.get_or_create(name=Path(theme).parts[-1], defaults={
+                    "installed": True,
+                    "updated": datetime.now(),
+                })
+
         post_save.connect(on_post_save, sender=apps.get_model("core", "Post"))
         post_save.connect(on_page_save, sender=apps.get_model("core", "Page"))
         post_save.connect(on_publish_save, sender=apps.get_model("core", "Publish"))
 
 
 def on_post_save(instance, **kwargs): # instance: core.Post
-    with instance.site.pelican.get_post_path(instance).open("wt") as file:
+    from velican2.pelican.models import Settings
+    if instance.site.engine != "pelican":
+        return
+    pelican = Settings.objects.get(site=instance.site)
+    with pelican.get_post_path(instance).open("wt") as file:
         write_post(instance, file)
 
 
 def on_page_save(instance, **kwargs): # instance: core.Page
-    with instance.site.pelican.get_page_path(instance).open("wt") as file:
+    from velican2.pelican.models import Settings
+    if instance.site.engine != "pelican":
+        return
+    pelican = Settings.objects.get(site=instance.site)
+    with pelican.get_page_path(instance).open("wt") as file:
         write_page(instance, file)
 
 
 def on_publish_save(instance, **kwargs): # instance: core.Publish
+    from velican2.pelican.models import Settings
     if instance.site.engine != "pelican":
         return
+    pelican = Settings.objects.get(site=instance.site)
     if not instance.finished:
         threading.Thread(
-            target=lambda instance: instance.site.pelican.publish(instance), args=(instance, ), daemon=True).start()
+            target=lambda instance: pelican.publish(instance), args=(instance, ), daemon=True).start()
 
 
 def write_post(post, writer: io.TextIOBase): # post: core.Post
