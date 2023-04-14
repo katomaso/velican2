@@ -9,6 +9,9 @@ from django.dispatch import receiver
 from pathlib import Path
 from pelican.tools import pelican_themes
 
+from velican2.pelican import logger
+
+
 class App(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'velican2.pelican'
@@ -26,34 +29,49 @@ class App(AppConfig):
                     "updated": datetime.now(),
                 })
 
+        post_save.connect(on_site_save, sender=apps.get_model("core", "Site"))
         post_save.connect(on_post_save, sender=apps.get_model("core", "Post"))
         post_save.connect(on_page_save, sender=apps.get_model("core", "Page"))
         post_save.connect(on_publish_save, sender=apps.get_model("core", "Publish"))
 
 
+def on_site_save(instance, **kwargs): # instance: core.Site
+    from velican2.pelican.models import Engine, Theme
+    if instance.engine != "pelican":
+        return
+    _, created = Engine.objects.get_or_create(
+        site=instance,
+        defaults=dict(
+            theme=Theme.objects.all().first(),
+            post_url_template=Engine.POST_URL_TEMPLATES[0][1],
+        )
+    )
+    if created:
+        logger.info(f"Created default pelican engine for {instance.domain}")
+
 def on_post_save(instance, **kwargs): # instance: core.Post
-    from velican2.pelican.models import Settings
+    from velican2.pelican.models import Engine
     if instance.site.engine != "pelican":
         return
-    pelican = Settings.objects.get(site=instance.site)
+    pelican = Engine.objects.get(site=instance.site)
     with pelican.get_post_path(instance).open("wt") as file:
         write_post(instance, file)
 
 
 def on_page_save(instance, **kwargs): # instance: core.Page
-    from velican2.pelican.models import Settings
+    from velican2.pelican.models import Engine
     if instance.site.engine != "pelican":
         return
-    pelican = Settings.objects.get(site=instance.site)
+    pelican = Engine.objects.get(site=instance.site)
     with pelican.get_page_path(instance).open("wt") as file:
         write_page(instance, file)
 
 
 def on_publish_save(instance, **kwargs): # instance: core.Publish
-    from velican2.pelican.models import Settings
+    from velican2.pelican.models import Engine
     if instance.site.engine != "pelican":
         return
-    pelican = Settings.objects.get(site=instance.site)
+    pelican = Engine.objects.get(site=instance.site)
     if not instance.finished:
         threading.Thread(
             target=lambda instance: pelican.publish(instance), args=(instance, ), daemon=True).start()

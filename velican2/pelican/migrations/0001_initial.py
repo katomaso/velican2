@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
             name='Theme',
             fields=[
                 ('name', models.CharField(blank=True, help_text='Must be set explicitely for Multi Theme Source', max_length=32, primary_key=True, serialize=False)),
-                ('mapping', models.TextField(help_text='Jinja code to define necessary variables for the theme')),
+                ('mapping', models.TextField(null=True, blank=True, help_text='Jinja code to define necessary variables for the theme')),
                 ('installed', models.BooleanField(default=False)),
                 ('updated', models.DateTimeField(auto_now_add=True)),
                 ('log', models.TextField(null=True)),
@@ -38,7 +38,7 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name='Settings',
+            name='Engine',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('show_page_in_menu', models.BooleanField(default=True, help_text='Display pages in menu')),
@@ -55,8 +55,8 @@ class Migration(migrations.Migration):
                 ('theme', models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, to='pelican.theme')),
             ],
             options={
-                'verbose_name': 'Settings',
-                'verbose_name_plural': 'Settings',
+                'verbose_name': 'Engine',
+                'verbose_name_plural': 'Engines',
             },
         ),
     ]

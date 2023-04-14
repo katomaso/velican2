@@ -38,7 +38,7 @@ class ThemeSource(models.Model):
 
     @property
     def installed(self):
-        return self.themes.count() > 0
+        return self.themes.count() > 0 or Theme.objects.filter(name=self.name).count() > 0
 
     @property
     def name(self):
@@ -115,7 +115,7 @@ def is_theme(path):
 
 class Theme(models.Model):
     name = models.CharField(max_length=32, blank=True, primary_key=True, help_text="Must be set explicitely for Multi Theme Source")
-    mapping = models.TextField(help_text="Jinja code to define necessary variables for the theme")
+    mapping = models.TextField(blank=True, null=True, help_text="Jinja code to define necessary variables for the theme")
     installed = models.BooleanField(default=False)
     updated = models.DateTimeField(auto_now_add=True)
     log = models.TextField(null=True)
@@ -188,12 +188,8 @@ class Theme(models.Model):
         return super().save(**kwargs)
 
 
-class Settings(models.Model):
-    site = models.OneToOneField(core.Site, related_name="pelican", on_delete=models.CASCADE)
-    theme = models.ForeignKey(Theme, on_delete=models.DO_NOTHING)
-    show_page_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display pages in menu"))
-    show_category_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display categories in menu"))
-    post_url_template = models.CharField(max_length=255, choices=(
+class Engine(models.Model):
+    POST_URL_TEMPLATES = (
         (f"{_('slug')}.html", '{date:%Y}/{date:%b}/{date:%d}/{slug}.html'),
         (f"{_('slug')}/index.html", '{slug}/index.html'),
         (f"{_('year')}/{_('slug')}.html", '{date:%Y}/{slug}.html'),
@@ -201,18 +197,23 @@ class Settings(models.Model):
         (f"{_('author')}/{_('slug')}.html", '{category}/{slug}.html'),
         (f"{_('category')}/{_('slug')}.html", '{category}/{slug}.html'),
         (f"{_('category')}/{_('year')}/{_('slug')}.html", '{category}/{date:%Y}/{slug}.html'),
-    ))
-    page_url_prefix = models.CharField(max_length=35, help_text=_("Pages URL prefix (pages urls will look like 'prefix/{slug}.html')"))
-    category_url_prefix = models.CharField(max_length=35, help_text=_("Category URL prefix (pages urls will look like 'prefix/{slug}.html')"))
-    author_url_prefix = models.CharField(max_length=35, help_text=_("Author URL prefix (pages urls will look like 'prefix/{slug}.html')"))
+    )
+    site = models.OneToOneField(core.Site, related_name="pelican", on_delete=models.CASCADE)
+    theme = models.ForeignKey(Theme, on_delete=models.DO_NOTHING)
+    show_page_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display pages in menu"))
+    show_category_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display categories in menu"))
+    post_url_template = models.CharField(max_length=255, choices=POST_URL_TEMPLATES)
+    page_url_prefix = models.CharField(max_length=35, blank=True, default="", help_text=_("Pages URL prefix (pages urls will look like 'prefix/{slug}.html')"))
+    category_url_prefix = models.CharField(max_length=35, default=_("category"), help_text=_("Category URL prefix (pages urls will look like 'prefix/{slug}.html')"))
+    author_url_prefix = models.CharField(max_length=35, default=_("author"), help_text=_("Author URL prefix (pages urls will look like 'prefix/{slug}.html')"))
     facebook = models.CharField(max_length=128, null=True)
     twitter = models.CharField(max_length=128, null=True)
     linkedin = models.CharField(max_length=128, null=True)
     github = models.CharField(max_length=128, null=True)
 
     class Meta:
-        verbose_name = _("Settings")
-        verbose_name_plural = _("Settings")
+        verbose_name = _("Engine")
+        verbose_name_plural = _("Engines")
 
     @property
     def page_url_template(self):
@@ -227,16 +228,15 @@ class Settings(models.Model):
         return (self.author_url_prefix + "/" if self.author_url_prefix else "") + "{slug}.html"
 
     def save(self, **kwargs):
-        conf = self.as_conf()
-        conf["PATH"].mkdir(exist_ok=True)
-        (conf["PATH"] / conf['PAGE_PATHS'][0]).mkdir(exist_ok=True)
-        (conf["PATH"] / conf['ARTICLE_PATHS'][0]).mkdir(exist_ok=True)
-        conf["OUTPUT_DIR"].mkdir(exist_ok=True)
-        conf["PREVIEW_DIR"].mkdir(exist_ok=True)
+        self.conf["PATH"].mkdir(exist_ok=True, parents=True)
+        (self.conf["PATH"] / self.conf['PAGE_PATHS'][0]).mkdir(exist_ok=True)
+        (self.conf["PATH"] / self.conf['ARTICLE_PATHS'][0]).mkdir(exist_ok=True)
+        self.conf["OUTPUT_DIR"].mkdir(exist_ok=True, parents=True)
+        self.conf["PREVIEW_DIR"].mkdir(exist_ok=True, parents=True)
         return super().save(**kwargs)
 
     @cached_property
-    def as_conf(self):
+    def conf(self):
         return {
             'SITEURL': self.site.domain,
             'SITENAME': self.site.title,
@@ -261,11 +261,14 @@ class Settings(models.Model):
             'PREVIEW_DIR': settings.PELICAN_OUTPUT / self.site.domain / self.site.path / "preview",
         }
 
+    def get_publish_path(self):
+        return self.conf['OUTPUT_DIR']
+
     def get_page_path(self, page: core.Page):
-        return self.as_conf()['PATH'] / self.as_conf()['PAGE_PATHS'][0] / page.slug + ".md"
+        return self.conf['PATH'] / self.conf['PAGE_PATHS'][0] / page.slug + ".md"
 
     def get_post_path(self, post: core.Post):
-        return self.as_conf()['PATH'] / self.as_conf()['ARTICLE_PATHS'][0] / post.slug + ".md"
+        return self.conf['PATH'] / self.conf['ARTICLE_PATHS'][0] / post.slug + ".md"
 
     def get_page_url(self, site: core.Site, page: core.Page):
         return site.absolutize(

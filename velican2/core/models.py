@@ -17,6 +17,9 @@ LANG_CHOICES = (
 )
 
 
+def site_logo_upload(self, filename):
+    return settings.MEDIA_ROOT / self.domain / self.path.strip("/") / filename
+
 class Site(models.Model):
     domain = models.CharField(max_length=32, db_index=True, help_text="Example: example.com", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+\.?)+$'), ))
     path = models.CharField(max_length=32, default="", blank=True, help_text="Fill only if your site is under a path (e.g. \"/blog\")", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+/?)*$'), ))
@@ -26,13 +29,16 @@ class Site(models.Model):
 
     title = models.CharField(max_length=128, null=True)
     subtitle = models.CharField(max_length=128, null=True)
-    logo = models.ImageField(blank=True, null=True, upload_to=lambda self, filename: settings.MEDIA_ROOT / self.domain / self.path.strip("/") / filename)
+    logo = models.ImageField(blank=True, null=True, upload_to=site_logo_upload)
 
     allow_crawlers = models.BooleanField(default=True, help_text="Allow search engines to index this page")
     allow_training = models.BooleanField(default=True, help_text="Allow AI engines to index this page")
 
     engine = models.CharField(max_length=12, null=False,
         choices=(("pelican", "Pelican"), ), default="pelican")
+
+    deployment = models.CharField(max_length=12, null=False,
+        choices=(("caddy", "local Caddy server"), ), default="caddy")
 
     secure = models.BooleanField(default=True, help_text="The site is served via secured connection https")
 
@@ -45,8 +51,8 @@ class Site(models.Model):
 
     def get_engine(self):
         if self.engine == "pelican":
-            from velican2.pelican.models import Settings
-            return Settings.objects.get(site=self)
+            from velican2.pelican.models import Engine
+            return Engine.objects.get(site=self)
 
     def publish(self, user: auth.User, preview=False):
         return Publish.get_running() or Publish.objects.create(

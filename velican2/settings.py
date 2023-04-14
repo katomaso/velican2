@@ -36,6 +36,7 @@ INSTALLED_APPS = [
 
     'velican2.core',
     'velican2.pelican',
+    'velican2.caddy',
 ]
 
 MIDDLEWARE = [
@@ -79,11 +80,14 @@ DATABASES = {
     }
 }
 
+MEDIA_ROOT = BASE_DIR / "media"
+
 PELICAN_THEMES = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "pelican-themes/"))
 PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "runtime/pelican/"))
 PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", BASE_DIR / "runtime/www/"))
 
-MEDIA_ROOT = BASE_DIR / "media"
+# set to None or an empty string to disable caddy deployment
+CADDY_URL = os.getenv("VELICAN_CADDY", "http://localhost:2019")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
