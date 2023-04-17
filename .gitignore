@@ -1,7 +1,10 @@
 /venv
 /.venv
-/db.sqlite3
+/sqlite3.db
 /runtime
+/cache
+/apps
+/media
 
 **/__pycache__
 **/*.pyc

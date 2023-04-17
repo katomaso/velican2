@@ -36,42 +36,42 @@ class App(AppConfig):
 
 
 def on_site_save(instance, **kwargs): # instance: core.Site
-    from velican2.pelican.models import Engine, Theme
+    from velican2.pelican.models import Settings, Theme
     if instance.engine != "pelican":
         return
-    _, created = Engine.objects.get_or_create(
+    _, created = Settings.objects.get_or_create(
         site=instance,
         defaults=dict(
             theme=Theme.objects.all().first(),
-            post_url_template=Engine.POST_URL_TEMPLATES[0][1],
+            post_url_template=Settings.POST_URL_TEMPLATES[0][1],
         )
     )
     if created:
         logger.info(f"Created default pelican engine for {instance.domain}")
 
 def on_post_save(instance, **kwargs): # instance: core.Post
-    from velican2.pelican.models import Engine
+    from velican2.pelican.models import Settings
     if instance.site.engine != "pelican":
         return
-    pelican = Engine.objects.get(site=instance.site)
+    pelican = Settings.objects.get(site=instance.site)
     with pelican.get_post_path(instance).open("wt") as file:
         write_post(instance, file)
 
 
 def on_page_save(instance, **kwargs): # instance: core.Page
-    from velican2.pelican.models import Engine
+    from velican2.pelican.models import Settings
     if instance.site.engine != "pelican":
         return
-    pelican = Engine.objects.get(site=instance.site)
+    pelican = Settings.objects.get(site=instance.site)
     with pelican.get_page_path(instance).open("wt") as file:
         write_page(instance, file)
 
 
 def on_publish_save(instance, **kwargs): # instance: core.Publish
-    from velican2.pelican.models import Engine
+    from velican2.pelican.models import Settings
     if instance.site.engine != "pelican":
         return
-    pelican = Engine.objects.get(site=instance.site)
+    pelican = Settings.objects.get(site=instance.site)
     if not instance.finished:
         threading.Thread(
             target=lambda instance: pelican.publish(instance), args=(instance, ), daemon=True).start()
@@ -79,6 +79,7 @@ def on_publish_save(instance, **kwargs): # instance: core.Publish
 
 def write_post(post, writer: io.TextIOBase): # post: core.Post
     writer.write("title: "); writer.write(post.title); writer.write("\n")
+    writer.write("slug: "); writer.write(str(post.slug)); writer.write("\n")
     writer.write("created: "); writer.write(str(post.created)); writer.write("\n")
     writer.write("updated: "); writer.write(str(post.updated)); writer.write("\n")
     writer.write("author: "); writer.write(str(post.author)); writer.write("\n")

@@ -76,13 +76,13 @@ WSGI_APPLICATION = 'velican2.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / 'sqlite3.db',
     }
 }
 
 MEDIA_ROOT = BASE_DIR / "media"
 
-PELICAN_THEMES = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "pelican-themes/"))
+PELICAN_THEMES = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "runtime/themes/"))
 PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "runtime/pelican/"))
 PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", BASE_DIR / "runtime/www/"))
 

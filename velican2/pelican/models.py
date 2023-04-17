@@ -188,7 +188,7 @@ class Theme(models.Model):
         return super().save(**kwargs)
 
 
-class Engine(models.Model):
+class Settings(models.Model):
     POST_URL_TEMPLATES = (
         (f"{_('slug')}.html", '{date:%Y}/{date:%b}/{date:%d}/{slug}.html'),
         (f"{_('slug')}/index.html", '{slug}/index.html'),
@@ -212,8 +212,10 @@ class Engine(models.Model):
     github = models.CharField(max_length=128, null=True)
 
     class Meta:
-        verbose_name = _("Engine")
-        verbose_name_plural = _("Engines")
+        verbose_name = _("Settings")
+        verbose_name_plural = _("Settings")
+
+    __str__  = lambda self: str(self.site)
 
     @property
     def page_url_template(self):
@@ -235,10 +237,14 @@ class Engine(models.Model):
         self.conf["PREVIEW_DIR"].mkdir(exist_ok=True, parents=True)
         return super().save(**kwargs)
 
-    @cached_property
+    @property
     def conf(self):
-        return {
-            'SITEURL': self.site.domain,
+        if hasattr(self, '_settings'):
+            return self._settings
+        self._settings = pelican.settings.DEFAULT_CONFIG.copy()
+        self._settings.update({
+            'SITEURL': self.site.absolutize("/"), # give the full URL for the root of the blog
+            'FEED_DOMAIN': self.site.absolutize("/"), # give the full URL for the root of the blog
             'SITENAME': self.site.title,
             'PATH': settings.PELICAN_CONTENT / self.site.domain / self.site.path,
             'PAGE_PATHS': ["pages", ],
@@ -257,18 +263,21 @@ class Engine(models.Model):
             'CATEGORY_SAVE_AS': self.category_url_template,
             'AUTHOR_URL': self.author_url_template,
             'AUTHOR_SAVE_AS': self.author_url_template,
-            'OUTPUT_DIR': settings.PELICAN_OUTPUT / self.site.domain / self.site.path,
-            'PREVIEW_DIR': settings.PELICAN_OUTPUT / self.site.domain / self.site.path / "preview",
-        }
+            'OUTPUT_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path,
+            'PREVIEW_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path / "preview",
+            'THEME': self.theme.name,
+            'PAGINATION_PATTERNS': [], # HACK: the implementation seems broken so disallow pagination
+        })
+        return self._settings
 
     def get_publish_path(self):
         return self.conf['OUTPUT_DIR']
 
     def get_page_path(self, page: core.Page):
-        return self.conf['PATH'] / self.conf['PAGE_PATHS'][0] / page.slug + ".md"
+        return self.conf['PATH'] / self.conf['PAGE_PATHS'][0] / (page.slug + ".md")
 
     def get_post_path(self, post: core.Post):
-        return self.conf['PATH'] / self.conf['ARTICLE_PATHS'][0] / post.slug + ".md"
+        return self.conf['PATH'] / self.conf['ARTICLE_PATHS'][0] / (post.slug + ".md")
 
     def get_page_url(self, site: core.Site, page: core.Page):
         return site.absolutize(
@@ -288,14 +297,15 @@ class Engine(models.Model):
     
     def publish(self, publish: core.Publish):
         try:
-            proc = pelican.Pelican(self.as_conf())
+            proc = pelican.Pelican(self.conf)
             proc.run()
             publish.success = True
         except Exception as e:
             publish.success = False
             publish.message = str(e)
+            raise
         finally:
-            publish.finished = datetime.now()
+            publish.finished = datetime.utcnow()
             publish.save()
 
 

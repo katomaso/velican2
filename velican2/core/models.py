@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from django.db import models
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.auth import models as auth
+from django.core.exceptions import ValidationError
 from django.core.validators import validate_unicode_slug, RegexValidator
 from django.utils.translation import gettext as _
 
@@ -51,8 +51,8 @@ class Site(models.Model):
 
     def get_engine(self):
         if self.engine == "pelican":
-            from velican2.pelican.models import Engine
-            return Engine.objects.get(site=self)
+            from velican2.pelican.models import Settings
+            return Settings.objects.get(site=self)
 
     def publish(self, user: auth.User, preview=False):
         return Publish.get_running() or Publish.objects.create(
@@ -102,19 +102,23 @@ class Publish(models.Model):
             return Publish.objects.filter(
                 site=site,
                 preview=preview,
-                started__gt=datetime.utcnow()-timedelta(minute=1),
-                finished__isnone=True).get()
+                started__gt=datetime.utcnow()-timedelta(minutes=1),
+                finished=None).get()
         except Publish.DoesNotExist:
             return None
 
+    def run(self):
+        self.site.get_engine().render()
+        self.site.get_deploy().deploy()
+
     def save(self, **kwargs):
         if not self.id:  # new record
-            if Publish.get_running() is not None:
+            if Publish.get_running(self.site) is not None:
                 raise UpdateException("Publish is already running")
         super().save(**kwargs)
 
 
-class Page(models.Model):
+class Content(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     slug = models.CharField(max_length=64, validators=(validate_unicode_slug,))
     title = models.CharField(max_length=128)
@@ -124,31 +128,36 @@ class Page(models.Model):
     updated = models.DateTimeField(auto_now=datetime.utcnow)
 
     class Meta:
-        verbose_name = _("Page")
-        verbose_name_plural = _("Pages")
+        abstract = True
 
-    class Meta:
-        unique_together = (('site', 'slug', 'lang'), )
+    def clean(self):
+        if self.id: # model aready exists
+            prev = Post.objects.get(id=self.id)
+            if prev.updated > self.updated:
+                raise ValidationError("You are editing an outdated version")
 
     def can_edit(self, user: auth.User):
         return self.site.staff.contains(user)
 
     def save(self, user=None, **kwargs):
         if user and not self.can_edit(user):
-            raise PermissionError("You are not a part of staff of the site")
-        if self.id:
-            prev = Post.objects.get(id=self.id)
-            if prev.updated > self.updated:
-                raise UpdateException("You are editing an outdated version")
+            raise PermissionError("You don't have edit rights on this")
         super().save(self, **kwargs)
+
+
+class Page(Content):
+    class Meta:
+        verbose_name = _("Page")
+        verbose_name_plural = _("Pages")
+        unique_together = (('site', 'slug', 'lang'), )
 
     def get_url(self):
         return self.site.get_engine().get_page_url(self.site, self)
 
 
-class Post(Page):
-    category = models.ForeignKey(Category, null=True, on_delete=models.SET_NULL)
-    author = models.ForeignKey(auth.User, null=True, on_delete=models.SET_NULL)
+class Post(Content):
+    category = models.ForeignKey(Category, null=True, on_delete=models.SET_NULL, db_index=False)
+    author = models.ForeignKey(auth.User, null=True, on_delete=models.SET_NULL, db_index=False)
     description = models.TextField()
     punchline = models.TextField(blank=True, help_text="Punchline for social media. Defaults to description.")
     draft = models.BooleanField(default=True)
@@ -156,17 +165,14 @@ class Post(Page):
     class Meta:
         verbose_name = _("Post")
         verbose_name_plural = _("Posts")
+        unique_together = (('site', 'slug', 'lang'), )
+
+    __str__ = lambda self: self.title
 
     def save(self, user=None, **kwargs):
-        if user and not self.can_edit(user):
-            raise PermissionError("You are not a part of staff of the site")
         if user and not self.author:
             self.author = user
-        if self.id:
-            prev = Post.objects.get(id=self.id)
-            if prev.updated > self.updated:
-                raise UpdateException("You are editing an outdated version")
-        super().save(**kwargs)
+        super().save(user=user, **kwargs)
 
     def get_url(self):
         return self.site.get_engine().get_post_url(self.site, self)

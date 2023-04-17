@@ -1,4 +1,6 @@
 import requests
+import urllib3.exceptions
+
 from velican2.caddy import logger
 from django.apps import apps, AppConfig
 from django.conf import settings
@@ -12,7 +14,10 @@ def on_site_save(instance, **kwargs):
         return
 
     routes = requests.get(settings.CADDY_URL + "/config/apps/http/servers/velican/handlers/").json()
-    if routes and instance.domain in list(map(lambda h: h['match'][0]['host'], routes)):
+    if not routes or "error" in routes:
+        logger.error("Error asking caddy for existing routes. " + (routes or dict()).get("error", "Empty response"))
+        return
+    if instance.domain in list(map(lambda h: h['match'][0]['host'], routes)):
         logger.debug(f"Site {instance.domain} already in caddy handlers")
         return
     requests.post(
@@ -48,3 +53,5 @@ class CaddyConfig(AppConfig):
                             )
         except requests.ConnectTimeout as cto:
             logger.error("Caddy initial connection timed out. Not allowing caddy deploy")
+        except urllib3.exceptions.NewConnectionError as nco:
+            logger.error("Cannot connect to caddy's admin interface")
