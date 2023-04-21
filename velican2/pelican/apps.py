@@ -78,12 +78,13 @@ def on_publish_save(instance, **kwargs): # instance: core.Publish
 
 
 def write_post(post, writer: io.TextIOBase): # post: core.Post
-    writer.write("title: "); writer.write(post.title); writer.write("\n")
-    writer.write("slug: "); writer.write(str(post.slug)); writer.write("\n")
-    writer.write("created: "); writer.write(str(post.created)); writer.write("\n")
-    writer.write("updated: "); writer.write(str(post.updated)); writer.write("\n")
-    writer.write("author: "); writer.write(str(post.author)); writer.write("\n")
-    writer.write("description: "); writer.write(post.description.replace("\n", "")); writer.write("\n")
+    writer.write("Title: "); writer.write(post.title); writer.write("\n")
+    writer.write("Date: "); writer.write(str(post.created)); writer.write("\n")
+    writer.write("Modified: "); writer.write(str(post.updated)); writer.write("\n")
+    writer.write("Slug: "); writer.write(str(post.slug)); writer.write("\n")
+    # writer.write("Tags: "); writer.write(str(post.created)); writer.write("\n")
+    writer.write("Authors: "); writer.write(str(post.author)); writer.write("\n")
+    writer.write("Summary: "); writer.write(post.description.replace("\n", "")); writer.write("\n")
     writer.write("\n")
     writer.write(post.content)
 

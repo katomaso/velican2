@@ -2,6 +2,7 @@ import io
 import pelican
 import re
 import subprocess
+import pelican.paginator
 
 from pathlib import Path
 from datetime import datetime
@@ -14,7 +15,6 @@ from django.utils.translation import gettext as _
 from velican2.core import models as core
 from velican2.pelican import logger
 from pelican.tools import pelican_themes
-
 #
 # HACK: inject different err function so we can actually see errors
 #
@@ -190,26 +190,26 @@ class Theme(models.Model):
 
 class Settings(models.Model):
     POST_URL_TEMPLATES = (
-        (f"{_('slug')}.html", '{date:%Y}/{date:%b}/{date:%d}/{slug}.html'),
-        (f"{_('slug')}/index.html", '{slug}/index.html'),
-        (f"{_('year')}/{_('slug')}.html", '{date:%Y}/{slug}.html'),
-        (f"{_('year')}/{_('month')}/{_('slug')}.html", '{date:%Y}/{date:%b}/{slug}.html'),
-        (f"{_('author')}/{_('slug')}.html", '{category}/{slug}.html'),
-        (f"{_('category')}/{_('slug')}.html", '{category}/{slug}.html'),
-        (f"{_('category')}/{_('year')}/{_('slug')}.html", '{category}/{date:%Y}/{slug}.html'),
+        ('{date:%Y}/{date:%b}/{date:%d}/{slug}.html', f"{_('slug')}.html"),
+        ('{slug}/index.html', f"{_('slug')}/index.html"),
+        ('{date:%Y}/{slug}.html', f"{_('year')}/{_('slug')}.html"),
+        ('{date:%Y}/{date:%b}/{slug}.html', f"{_('year')}/{_('month')}/{_('slug')}.html"),
+        ('{category}/{slug}.html', f"{_('author')}/{_('slug')}.html"),
+        ('{category}/{slug}.html', f"{_('category')}/{_('slug')}.html"),
+        ('{category}/{date:%Y}/{slug}.html', f"{_('category')}/{_('year')}/{_('slug')}.html"),
     )
     site = models.OneToOneField(core.Site, related_name="pelican", on_delete=models.CASCADE)
     theme = models.ForeignKey(Theme, on_delete=models.DO_NOTHING)
     show_page_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display pages in menu"))
     show_category_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display categories in menu"))
-    post_url_template = models.CharField(max_length=255, choices=POST_URL_TEMPLATES)
+    post_url_template = models.CharField(max_length=255, choices=POST_URL_TEMPLATES, default=POST_URL_TEMPLATES[0][0])
     page_url_prefix = models.CharField(max_length=35, blank=True, default="", help_text=_("Pages URL prefix (pages urls will look like 'prefix/{slug}.html')"))
     category_url_prefix = models.CharField(max_length=35, default=_("category"), help_text=_("Category URL prefix (pages urls will look like 'prefix/{slug}.html')"))
     author_url_prefix = models.CharField(max_length=35, default=_("author"), help_text=_("Author URL prefix (pages urls will look like 'prefix/{slug}.html')"))
-    facebook = models.CharField(max_length=128, null=True)
-    twitter = models.CharField(max_length=128, null=True)
-    linkedin = models.CharField(max_length=128, null=True)
-    github = models.CharField(max_length=128, null=True)
+    facebook = models.CharField(max_length=128, null=True, blank=True)
+    twitter = models.CharField(max_length=128, null=True, blank=True)
+    linkedin = models.CharField(max_length=128, null=True, blank=True)
+    github = models.CharField(max_length=128, null=True, blank=True)
 
     class Meta:
         verbose_name = _("Settings")
@@ -233,8 +233,8 @@ class Settings(models.Model):
         self.conf["PATH"].mkdir(exist_ok=True, parents=True)
         (self.conf["PATH"] / self.conf['PAGE_PATHS'][0]).mkdir(exist_ok=True)
         (self.conf["PATH"] / self.conf['ARTICLE_PATHS'][0]).mkdir(exist_ok=True)
-        self.conf["OUTPUT_DIR"].mkdir(exist_ok=True, parents=True)
-        self.conf["PREVIEW_DIR"].mkdir(exist_ok=True, parents=True)
+        self.conf["OUTPUT_PATH"].mkdir(exist_ok=True, parents=True)
+        self.conf["PREVIEW_PATH"].mkdir(exist_ok=True, parents=True)
         return super().save(**kwargs)
 
     @property
@@ -248,7 +248,7 @@ class Settings(models.Model):
             'SITENAME': self.site.title,
             'PATH': settings.PELICAN_CONTENT / self.site.domain / self.site.path,
             'PAGE_PATHS': ["pages", ],
-            'ARTICLE_PATHS': ["articles", ],
+            'ARTICLE_PATHS': ["content", ],
             'STATIC_PATHS': ['images', ],
             'STATIC_CREATE_LINKS': True,  #  create (sym)links to static files instead of copying them
             'STATIC_CHECK_IF_MODIFIED': True,
@@ -266,12 +266,13 @@ class Settings(models.Model):
             'OUTPUT_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path,
             'PREVIEW_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path / "preview",
             'THEME': self.theme.name,
-            'PAGINATION_PATTERNS': [], # HACK: the implementation seems broken so disallow pagination
+            # Why the heck the dafault PAGINATION_PATTERNS are broken?!
+            'PAGINATION_PATTERNS': [pelican.paginator.PaginationRule(*x) for x in pelican.settings.DEFAULT_CONFIG['PAGINATION_PATTERNS']]
         })
         return self._settings
 
     def get_publish_path(self):
-        return self.conf['OUTPUT_DIR']
+        return self.conf['OUTPUT_PATH']
 
     def get_page_path(self, page: core.Page):
         return self.conf['PATH'] / self.conf['PAGE_PATHS'][0] / (page.slug + ".md")

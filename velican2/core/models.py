@@ -142,7 +142,7 @@ class Content(models.Model):
     def save(self, user=None, **kwargs):
         if user and not self.can_edit(user):
             raise PermissionError("You don't have edit rights on this")
-        super().save(self, **kwargs)
+        super().save(**kwargs)
 
 
 class Page(Content):
@@ -156,8 +156,8 @@ class Page(Content):
 
 
 class Post(Content):
-    category = models.ForeignKey(Category, null=True, on_delete=models.SET_NULL, db_index=False)
-    author = models.ForeignKey(auth.User, null=True, on_delete=models.SET_NULL, db_index=False)
+    category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)
+    author = models.ForeignKey(auth.User, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)
     description = models.TextField()
     punchline = models.TextField(blank=True, help_text="Punchline for social media. Defaults to description.")
     draft = models.BooleanField(default=True)
