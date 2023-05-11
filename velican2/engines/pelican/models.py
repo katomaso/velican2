@@ -1,19 +1,19 @@
 import io
 import pelican
-import re
-import subprocess
 import pelican.paginator
+import re
+import shutil
+import subprocess
 
 from pathlib import Path
 from datetime import datetime
-from functools import cached_property
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
 from django.utils.translation import gettext as _
 from velican2.core import models as core
-from velican2.pelican import logger
+from velican2.engines.pelican import logger
 from pelican.tools import pelican_themes
 #
 # HACK: inject different err function so we can actually see errors
@@ -190,13 +190,13 @@ class Theme(models.Model):
 
 class Settings(models.Model):
     POST_URL_TEMPLATES = (
-        ('{date:%Y}/{date:%b}/{date:%d}/{slug}.html', f"{_('slug')}.html"),
-        ('{slug}/index.html', f"{_('slug')}/index.html"),
-        ('{date:%Y}/{slug}.html', f"{_('year')}/{_('slug')}.html"),
-        ('{date:%Y}/{date:%b}/{slug}.html', f"{_('year')}/{_('month')}/{_('slug')}.html"),
-        ('{category}/{slug}.html', f"{_('author')}/{_('slug')}.html"),
-        ('{category}/{slug}.html', f"{_('category')}/{_('slug')}.html"),
-        ('{category}/{date:%Y}/{slug}.html', f"{_('category')}/{_('year')}/{_('slug')}.html"),
+        ('/{date:%Y}/{date:%b}/{date:%d}/{slug}.html', f"<{_('slug')}>.html"),
+        ('/{slug}/index.html', f"<{_('slug')}>/index.html"),
+        ('/{date:%Y}/{slug}.html', f"<{_('year')}>/<{_('slug')}>.html"),
+        ('/{date:%Y}/{date:%b}/{slug}.html', f"<{_('year')}>/<{_('month')}>/<{_('slug')}>.html"),
+        ('/{category}/{slug}.html', f"<{_('author')}>/<{_('slug')}>.html"),
+        ('/{category}/{slug}.html', f"<{_('category')}>/<{_('slug')}>.html"),
+        ('/{category}/{date:%Y}/{slug}.html', f"<{_('category')}>/<{_('year')}>/<{_('slug')}>.html"),
     )
     site = models.OneToOneField(core.Site, related_name="pelican", on_delete=models.CASCADE)
     theme = models.ForeignKey(Theme, on_delete=models.DO_NOTHING)
@@ -219,23 +219,27 @@ class Settings(models.Model):
 
     @property
     def page_url_template(self):
-        return (self.page_url_prefix + "/" if self.page_url_prefix else "") + "{slug}.html"
+        return (("/" + self.page_url_prefix + "/") if self.page_url_prefix else "/") + "{slug}.html"
 
     @property
     def category_url_template(self):
-        return (self.category_url_prefix + "/" if self.category_url_prefix else "") + "{slug}.html"
+        return (("/" + self.category_url_prefix + "/") if self.category_url_prefix else "/") + "{slug}.html"
 
     @property
     def author_url_template(self):
-        return (self.author_url_prefix + "/" if self.author_url_prefix else "") + "{slug}.html"
+        return (("/" + self.author_url_prefix + "/") if self.author_url_prefix else "/") + "{slug}.html"
 
     def save(self, **kwargs):
         self.conf["PATH"].mkdir(exist_ok=True, parents=True)
         (self.conf["PATH"] / self.conf['PAGE_PATHS'][0]).mkdir(exist_ok=True)
         (self.conf["PATH"] / self.conf['ARTICLE_PATHS'][0]).mkdir(exist_ok=True)
         self.conf["OUTPUT_PATH"].mkdir(exist_ok=True, parents=True)
-        self.conf["PREVIEW_PATH"].mkdir(exist_ok=True, parents=True)
         return super().save(**kwargs)
+
+    def delete(self, **kwargs):
+        shutil.rmtree(self.get_source_path())
+        shutil.rmtree(self.get_output_path())
+        return super().delete(**kwargs)
 
     @property
     def conf(self):
@@ -264,49 +268,49 @@ class Settings(models.Model):
             'AUTHOR_URL': self.author_url_template,
             'AUTHOR_SAVE_AS': self.author_url_template,
             'OUTPUT_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path,
-            'PREVIEW_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path / "preview",
             'THEME': self.theme.name,
             # Why the heck the dafault PAGINATION_PATTERNS are broken?!
             'PAGINATION_PATTERNS': [pelican.paginator.PaginationRule(*x) for x in pelican.settings.DEFAULT_CONFIG['PAGINATION_PATTERNS']]
         })
         return self._settings
 
-    def get_publish_path(self):
+    def get_source_path(self):
+        """Returns source path for the site assigned to this pelican settings.
+        
+        Don't worry - themes and plugins are stored elsewhere.
+        """
+        return self.conf['PATH']
+
+    def get_output_path(self):
+        """Returns the output path for the site assigned to this pelican settings"""
         return self.conf['OUTPUT_PATH']
 
-    def get_page_path(self, page: core.Page):
+    def get_page_source_path(self, page: core.Page):
         return self.conf['PATH'] / self.conf['PAGE_PATHS'][0] / (page.slug + ".md")
 
-    def get_post_path(self, post: core.Post):
+    def get_post_source_path(self, post: core.Post):
         return self.conf['PATH'] / self.conf['ARTICLE_PATHS'][0] / (post.slug + ".md")
 
-    def get_page_url(self, site: core.Site, page: core.Page):
-        return site.absolutize(
-            self.post_url_template.format(
-                slug=page.slug
-            ))
+    def get_page_output_path(self, page: core.Page):
+        return self.conf['OUTPUT_PATH'] / self.get_page_url(page)
 
-    def get_post_url(self, site: core.Site, post: core.Post):
-        return site.absolutize(
-            self.post_url_template.format(
+    def get_post_output_path(self, post: core.Post):
+        return self.conf['OUTPUT_PATH'] / self.get_post_url(post)
+
+    def get_page_url(self, page: core.Page):
+        """Return URL of given page."""
+        return self.post_url_template.format(slug=page.slug)
+
+    def get_post_url(self, post: core.Post):
+        """Return URL of given post (containing index.html in case of pretty-urls)."""
+        return self.post_url_template.format(
                 slug=post.slug,
                 date=post.created,
                 category=post.category.slug if post.category else "",
                 author=post.author.username if post.author else "",
                 lang=post.lang,
-            ))
-    
-    def publish(self, publish: core.Publish):
-        try:
-            proc = pelican.Pelican(self.conf)
-            proc.run()
-            publish.success = True
-        except Exception as e:
-            publish.success = False
-            publish.message = str(e)
-            raise
-        finally:
-            publish.finished = datetime.utcnow()
-            publish.save()
+            )
 
-
+    def publish(self):
+        proc = pelican.Pelican(self.conf)
+        proc.run()

@@ -1,20 +1,21 @@
 import io
-import threading
+import pelican
+import shutil
 
 from datetime import datetime
 from django.apps import apps, AppConfig
 from django.conf import settings
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from pathlib import Path
 from pelican.tools import pelican_themes
 
-from velican2.pelican import logger
+from velican2.engines.pelican import logger
 
 
-class App(AppConfig):
+class Engine(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'velican2.pelican'
+    name = 'velican2.engines.pelican'
 
     def ready(self):
         if not settings.PELICAN_THEMES.is_dir():
@@ -32,11 +33,64 @@ class App(AppConfig):
         post_save.connect(on_site_save, sender=apps.get_model("core", "Site"))
         post_save.connect(on_post_save, sender=apps.get_model("core", "Post"))
         post_save.connect(on_page_save, sender=apps.get_model("core", "Page"))
-        post_save.connect(on_publish_save, sender=apps.get_model("core", "Publish"))
+
+    def _get_settings(self, site):
+        Settings = self.get_model("Settings")
+        return Settings.objects.get(site=site)
+
+    def render(self, site, post=None):
+        """Produce a HTML output from the database. This might update /index.html and other files."""
+        settings = self._get_settings(site)
+        proc = pelican.Pelican(settings.conf)
+        proc.run()
+
+    def delete(self, site, post=None, page=None):
+        """Delete source and rendered instances of post/page."""
+        settings = self._get_settings(site)
+        if post is not None:
+            logger.info("Deleting {post.site}/{post}")
+            settings.get_post_source_path(post).unlink()
+            settings.get_post_output_path(post).unlink()
+            return
+        if page is not None:
+            logger.info("Deleting {page.site}/{page}")
+            settings.get_page_source_path(page).unlink()
+            settings.get_page_output_path(page).unlink()
+            return
+        shutil.rmtree(settings.get_output_path())
+
+    def get_output_path(self, site):
+        """Get the path where rendered HTML files are written."""
+        settings = self._get_settings(site)
+        return settings.get_output_path()
+
+    def get_output_page_path(self, site, page):
+        """Get the path to given page."""
+        settings = self._get_settings(site)
+        return settings.get_page_output_path(page)
+
+    def get_output_post_path(self, site, post):
+        """Get the path to given post."""
+        settings = self._get_settings(site)
+        return settings.get_post_output_path(post)
+
+    def get_page_url(self, site, page, absolute=True):
+        settings = self._get_settings(site)
+        url = settings.get_page_url(page)
+        if absolute:
+            return site.absolutize(url)
+        return url
+
+    def get_post_url(self, site, post, absolute=True):
+        settings = self._get_settings(site)
+        url = settings.get_post_url(post)
+        if absolute:
+            return site.absolutize(url)
+        return url
 
 
 def on_site_save(instance, **kwargs): # instance: core.Site
-    from velican2.pelican.models import Settings, Theme
+    from velican2.engines.pelican.models import Settings, Theme
     if instance.engine != "pelican":
         return
     _, created = Settings.objects.get_or_create(
@@ -49,37 +103,31 @@ def on_site_save(instance, **kwargs): # instance: core.Site
     if created:
         logger.info(f"Created default pelican engine for {instance.domain}")
 
+
 def on_post_save(instance, **kwargs): # instance: core.Post
-    from velican2.pelican.models import Settings
+    from velican2.engines.pelican.models import Settings
     if instance.site.engine != "pelican":
         return
     pelican = Settings.objects.get(site=instance.site)
-    with pelican.get_post_path(instance).open("wt") as file:
+    logger.info(f"Writing file {pelican.get_post_source_path(instance)}")
+    with pelican.get_post_source_path(instance).open("wt") as file:
         write_post(instance, file)
 
 
 def on_page_save(instance, **kwargs): # instance: core.Page
-    from velican2.pelican.models import Settings
+    from velican2.engines.pelican.models import Settings
     if instance.site.engine != "pelican":
         return
     pelican = Settings.objects.get(site=instance.site)
-    with pelican.get_page_path(instance).open("wt") as file:
+    with pelican.get_page_source_path(instance).open("wt") as file:
         write_page(instance, file)
-
-
-def on_publish_save(instance, **kwargs): # instance: core.Publish
-    from velican2.pelican.models import Settings
-    if instance.site.engine != "pelican":
-        return
-    pelican = Settings.objects.get(site=instance.site)
-    if not instance.finished:
-        threading.Thread(
-            target=lambda instance: pelican.publish(instance), args=(instance, ), daemon=True).start()
 
 
 def write_post(post, writer: io.TextIOBase): # post: core.Post
     writer.write("Title: "); writer.write(post.title); writer.write("\n")
     writer.write("Date: "); writer.write(str(post.created)); writer.write("\n")
+    if post.draft:
+        writer.write("Status: draft\n")
     writer.write("Modified: "); writer.write(str(post.updated)); writer.write("\n")
     writer.write("Slug: "); writer.write(str(post.slug)); writer.write("\n")
     # writer.write("Tags: "); writer.write(str(post.created)); writer.write("\n")

@@ -1,7 +1,7 @@
 import requests
 import urllib3.exceptions
 
-from velican2.caddy import logger
+from velican2.deployers.caddy import logger
 from django.apps import apps, AppConfig
 from django.conf import settings
 from django.db.models.signals import post_save
@@ -26,14 +26,14 @@ def on_site_save(instance, **kwargs):
             "match": [{"host":[instance.domain,]}],
             "handle": [{
                 "handler": "file_server",
-                "root": str(instance.get_engine().get_publish_path())
+                "root": str(instance.get_engine().get_output_path(instance))
             }]
         })
 
 
 class CaddyConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'velican2.caddy'
+    name = 'velican2.deployers.caddy'
 
     def ready(self):
         if not settings.CADDY_URL:

@@ -1,3 +1,5 @@
+import threading
+
 from datetime import datetime, timedelta
 
 from django.db import models
@@ -7,6 +9,12 @@ from django.contrib.auth import models as auth
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_unicode_slug, RegexValidator
 from django.utils.translation import gettext as _
+
+from velican2 import engines
+from velican2 import deployers
+
+from .managers import PublishManager
+
 
 class UpdateException(Exception):
     pass
@@ -19,6 +27,8 @@ LANG_CHOICES = (
 
 def site_logo_upload(self, filename):
     return settings.MEDIA_ROOT / self.domain / self.path.strip("/") / filename
+
+ENGINE_CHOICES = tuple((engine, engine.title()) for engine in engines.engines)
 
 class Site(models.Model):
     domain = models.CharField(max_length=32, db_index=True, help_text="Example: example.com", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+\.?)+$'), ))
@@ -35,10 +45,13 @@ class Site(models.Model):
     allow_training = models.BooleanField(default=True, help_text="Allow AI engines to index this page")
 
     engine = models.CharField(max_length=12, null=False,
-        choices=(("pelican", "Pelican"), ), default="pelican")
+        choices=ENGINE_CHOICES, default=engines.engines[0])
 
     deployment = models.CharField(max_length=12, null=False,
-        choices=(("caddy", "local Caddy server"), ), default="caddy")
+        choices=(
+            ("aws", "AWS CloudFront"),
+            ("caddy", "local Caddy server")
+        ))
 
     secure = models.BooleanField(default=True, help_text="The site is served via secured connection https")
 
@@ -50,21 +63,28 @@ class Site(models.Model):
     __str__ = lambda self: self.domain + self.path
 
     def get_engine(self):
-        if self.engine == "pelican":
-            from velican2.pelican.models import Settings
-            return Settings.objects.get(site=self)
+        return engines.get_engine(self.engine)
 
-    def publish(self, user: auth.User, preview=False):
+    def get_deployer(self):
+        return deployers.get_deployer(self.deployment)
+
+    def publish(self, user: auth.User, **kwargs):
         return Publish.get_running() or Publish.objects.create(
             site=self,
             user=user,
+            **kwargs
         )
 
     def save(self, **kwargs):
         self.domain = self.domain.strip(".")
         if self.path.strip("/"):
             self.path = "/" + self.path.strip("/")
-        super().save(**kwargs)
+        return super().save(**kwargs)
+
+    def delete(self, **kwargs):
+        self.site.get_engine().delete(site=self)
+        self.site.get_deployer().delete(site=self)
+        return super().delete(**kwargs)
 
     def absolutize(self, path):
         return ("https://" if self.secure else "http://") + self.domain + self.path
@@ -72,8 +92,8 @@ class Site(models.Model):
 
 class Category(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
-    slug = models.CharField(max_length=32, validators=(validate_unicode_slug,))
     name = models.CharField(max_length=32)
+    slug = models.CharField(max_length=32, validators=(validate_unicode_slug,))
 
     class Meta:
         verbose_name = _("Category")
@@ -84,44 +104,10 @@ class Category(models.Model):
         return self.name
 
 
-class Publish(models.Model):
-    site = models.ForeignKey(Site, db_index=True, on_delete=models.CASCADE)
-    preview = models.BooleanField(default=False)
-    started = models.DateTimeField(auto_now_add=True, db_index=True)
-    finished = models.DateTimeField(null=True)
-    success =  models.BooleanField(null=True)
-    message = models.CharField(max_length=512)
-
-    class Meta:
-        verbose_name = _("Publish")
-        verbose_name_plural = _("Publish")
-
-    @classmethod
-    def get_running(cls, site: str, preview=False):
-        try:
-            return Publish.objects.filter(
-                site=site,
-                preview=preview,
-                started__gt=datetime.utcnow()-timedelta(minutes=1),
-                finished=None).get()
-        except Publish.DoesNotExist:
-            return None
-
-    def run(self):
-        self.site.get_engine().render()
-        self.site.get_deploy().deploy()
-
-    def save(self, **kwargs):
-        if not self.id:  # new record
-            if Publish.get_running(self.site) is not None:
-                raise UpdateException("Publish is already running")
-        super().save(**kwargs)
-
-
 class Content(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
-    slug = models.CharField(max_length=64, validators=(validate_unicode_slug,))
     title = models.CharField(max_length=128)
+    slug = models.CharField(max_length=64, validators=(validate_unicode_slug,))
     lang = models.CharField(max_length=5, choices=LANG_CHOICES)
     content = models.TextField()
     created = models.DateTimeField(auto_now_add=datetime.utcnow)
@@ -151,16 +137,21 @@ class Page(Content):
         verbose_name_plural = _("Pages")
         unique_together = (('site', 'slug', 'lang'), )
 
-    def get_url(self):
-        return self.site.get_engine().get_page_url(self.site, self)
+    def get_url(self, absolute=False):
+        return self.site.get_engine().get_page_url(self.site, self, absolute=absolute)
+    
+    def delete(self, **kwargs):
+        self.site.get_engine().delete(self.site, page=self)
+        self.site.get_deployer().delete(self.site, page=self)
+        return super().delete(**kwargs)
 
 
 class Post(Content):
+    draft = models.BooleanField(default=True)
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)
     author = models.ForeignKey(auth.User, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)
     description = models.TextField()
     punchline = models.TextField(blank=True, help_text="Punchline for social media. Defaults to description.")
-    draft = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = _("Post")
@@ -174,5 +165,59 @@ class Post(Content):
             self.author = user
         super().save(user=user, **kwargs)
 
-    def get_url(self):
-        return self.site.get_engine().get_post_url(self.site, self)
+    def delete(self, **kwargs):
+        self.site.get_engine().delete(self.site, post=self)
+        self.site.get_deployer().delete(self.site, post=self)
+        return super().delete(**kwargs)
+
+    def get_url(self, absolute=False):
+        return self.site.get_engine().get_post_url(self.site, self, absolute=absolute)
+
+
+class Publish(models.Model):
+    site = models.ForeignKey(Site, db_index=True, on_delete=models.CASCADE)
+    post = models.ForeignKey(Post, null=True, blank=True, db_index=False, on_delete=models.CASCADE)
+    force = models.BooleanField(default=False, help_text="Upload all files no matter their modification time")
+    purge = models.BooleanField(default=False, help_text="Clear all files in the bucket prior uploading")
+    started = models.DateTimeField(auto_now_add=True, db_index=True)
+    finished = models.DateTimeField(null=True)
+    success =  models.BooleanField(null=True)
+    message = models.CharField(max_length=512)
+
+    objects = PublishManager()
+
+    class Meta:
+        verbose_name = _("Publish")
+        verbose_name_plural = _("Publish")
+        ordering = ("site", "-finished")
+
+    @classmethod
+    def is_running(cls, site: str):
+        return Publish.objects.filter(
+            site=site,
+            started__gt=datetime.utcnow()-timedelta(minutes=1),
+            finished=None).exists()
+
+    def run(self):
+        try:
+            self.site.get_engine().render(self.site, post=self.post)
+            self.site.get_deployer().deploy(self.site, post=self.post, force=self.force, purge=self.purge)
+            # self.site.get_publishers().publish()
+            self.success = True
+        except Exception as e:
+            self.message = str(e)
+            self.success = False
+        finally:
+            self.finished = datetime.utcnow()
+            self.save()
+
+    def clean(self):
+        if not self.id:  # new record
+            if Publish.is_running(self.site):
+                raise ValidationError("Publish is already running")
+
+    def save(self, **kwargs):
+        if not self.finished:
+            threading.Thread(target=self.run, daemon=True).start()
+        return super().save(**kwargs)
+

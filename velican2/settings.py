@@ -35,8 +35,9 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.linkedin_oauth2',
 
     'velican2.core',
-    'velican2.pelican',
-    'velican2.caddy',
+    'velican2.engines.pelican',
+    'velican2.deployers.aws',
+    'velican2.deployers.caddy',
 ]
 
 MIDDLEWARE = [
@@ -88,6 +89,9 @@ PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", BASE_DIR / "runtime/www/"))
 
 # set to None or an empty string to disable caddy deployment
 CADDY_URL = os.getenv("VELICAN_CADDY", "http://localhost:2019")
+
+AWS_KEY=os.getenv("AWS_KEY", "")
+AWS_SECRET=os.getenv("AWS_SECRET", "")
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -147,11 +151,22 @@ LOGGING = {
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
         },
     },
-    'root': {
+    "formatters": {
+        "verbose": {
+            "format": "{name} {levelname} {asctime} {module} {message}",
+            "style": "{",
+        },
+        "simple": {
+            "format": "{levelname} {message}",
+            "style": "{",
+        },
+    },
+    '': {
         'handlers': ['console'],
-        'level': 'DEBUG' if DEBUG else 'INFO',
+        'level': 'INFO',
     },
     'loggers': {
         'django': {
@@ -159,5 +174,20 @@ LOGGING = {
             'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
             'propagate': False,
         },
+        'django.server': {
+            'handlers': ['console'],
+            'level': 'WARN',
+            'propagate': False,
+        },
+        'botocore': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'velican2': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        }
     },
 }

@@ -5,3 +5,4 @@ django-admin-tools
 markdown
 pelican
 Pillow
+boto3
