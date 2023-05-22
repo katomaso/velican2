@@ -25,6 +25,7 @@ class Engine(AppConfig):
         if "migrat" not in settings.SUBCOMMAND:
             Theme = self.get_model("Theme")
             for (theme, _) in pelican_themes.themes():
+                logger.info(f"Found {theme} with pelican_themes - installing")
                 Theme.objects.get_or_create(name=Path(theme).parts[-1], defaults={
                     "installed": True,
                     "updated": datetime.now(),
@@ -38,9 +39,11 @@ class Engine(AppConfig):
         Settings = self.get_model("Settings")
         return Settings.objects.get(site=site)
 
-    def render(self, site, post=None):
+    def render(self, site, post=None, page=None, **kwargs):
         """Produce a HTML output from the database. This might update /index.html and other files."""
         settings = self._get_settings(site)
+        if kwargs.get("purge", False):
+            shutil.rmtree(settings.get_output_path())
         proc = pelican.Pelican(settings.conf)
         proc.run()
 
@@ -132,6 +135,8 @@ def write_post(post, writer: io.TextIOBase): # post: core.Post
     writer.write("Slug: "); writer.write(str(post.slug)); writer.write("\n")
     # writer.write("Tags: "); writer.write(str(post.created)); writer.write("\n")
     writer.write("Authors: "); writer.write(str(post.author)); writer.write("\n")
+    if post.category:
+        writer.write("Category: "); writer.write(str(post.category)); writer.write("\n")
     writer.write("Summary: "); writer.write(post.description.replace("\n", "")); writer.write("\n")
     writer.write("\n")
     writer.write(post.content)

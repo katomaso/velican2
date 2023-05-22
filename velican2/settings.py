@@ -88,7 +88,7 @@ PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "runtime/pelican/
 PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", BASE_DIR / "runtime/www/"))
 
 # set to None or an empty string to disable caddy deployment
-CADDY_URL = os.getenv("VELICAN_CADDY", "http://localhost:2019")
+CADDY_URL = os.getenv("CADDY_URL", "http://localhost:2019")
 
 AWS_KEY=os.getenv("AWS_KEY", "")
 AWS_SECRET=os.getenv("AWS_SECRET", "")
@@ -188,6 +188,11 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'handlers': ['console'],
             'propagate': False,
-        }
+        },
+        'pelican': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
     },
 }

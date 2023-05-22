@@ -170,13 +170,11 @@ class Theme(models.Model):
             self.save()
 
     def delete(self, **kwargs):
-        if not self.installed:
-            return
-        try:
-            pelican_themes.remove(self.name, v=False)
-            self.installed = False
-        except Exception as e:
-            self.log = str(e)
+        if self.installed:
+            try:
+                pelican_themes.remove(self.name, v=False)
+            except Exception as e:
+                logger.warn(str(e))
         return super().delete(**kwargs)
 
     def save(self, **kwargs):
@@ -190,7 +188,7 @@ class Theme(models.Model):
 
 class Settings(models.Model):
     POST_URL_TEMPLATES = (
-        ('/{date:%Y}/{date:%b}/{date:%d}/{slug}.html', f"<{_('slug')}>.html"),
+        ('/{slug}.html', f"<{_('slug')}>.html"),
         ('/{slug}/index.html', f"<{_('slug')}>/index.html"),
         ('/{date:%Y}/{slug}.html', f"<{_('year')}>/<{_('slug')}>.html"),
         ('/{date:%Y}/{date:%b}/{slug}.html', f"<{_('year')}>/<{_('month')}>/<{_('slug')}>.html"),
@@ -258,9 +256,9 @@ class Settings(models.Model):
             'STATIC_CHECK_IF_MODIFIED': True,
             'DELETE_OUTPUT_DIRECTORY': False,
             'CACHE_CONTENT': True, # cache generated files
-            # 'LOAD_CONTENT_CACHE': True,
-            'ARTICLE_URL': self.post_url_template if not self.post_url_template.endswith("index.html") else self.post_url_template[:-10],
-            'ARTICLE_SAVE_AS': self.post_url_template,
+            'LOAD_CONTENT_CACHE': True,
+            'ARTICLE_URL': (self.post_url_template if not self.post_url_template.endswith("index.html") else self.post_url_template[:-10]).lstrip("/"),
+            'ARTICLE_SAVE_AS': self.post_url_template.lstrip("/"),
             'PAGE_URL': self.page_url_template,
             'PAGE_SAVE_AS': self.page_url_template,
             'CATEGORY_URL': self.category_url_template,
@@ -268,7 +266,7 @@ class Settings(models.Model):
             'AUTHOR_URL': self.author_url_template,
             'AUTHOR_SAVE_AS': self.author_url_template,
             'OUTPUT_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path,
-            'THEME': self.theme.name,
+            'THEME': str(Path(pelican_themes._THEMES_PATH, self.theme.name)),
             # Why the heck the dafault PAGINATION_PATTERNS are broken?!
             'PAGINATION_PATTERNS': [pelican.paginator.PaginationRule(*x) for x in pelican.settings.DEFAULT_CONFIG['PAGINATION_PATTERNS']]
         })

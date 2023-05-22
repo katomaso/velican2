@@ -10,7 +10,7 @@ from . import logger
 class AWS(models.Model):
     site = models.ForeignKey(core.Site, null=False, on_delete=models.CASCADE)
     cloudfront_id = models.CharField(max_length=32, null=True)
-    bucket_id = models.CharField(max_length=128, null=True, validators=[validators.validate_slug,])
+    bucket_id = models.CharField(max_length=128, null=True)
 
     __str__ = lambda self: str(self.site)
 
@@ -23,7 +23,7 @@ class AWS(models.Model):
             raise ValidationError(f"Site {self.site} does not deploy with AWS")
 
     def save(self, **kwargs):
-        if not self.id:
+        if not self.id and not self.bucket_id:
             bucket = self.s3.Bucket(self.site.domain)
             logger.info("Creating a new bucket " + self.site.domain)
             bucket.create(

@@ -104,6 +104,13 @@ class Category(models.Model):
         return self.name
 
 
+class Link(models.Model):
+    """Links available in the page header part"""
+    site = models.ForeignKey(Site, on_delete=models.CASCADE)
+    title = models.CharField(max_length=128)
+    link = models.CharField(max_length=128)
+
+
 class Content(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     title = models.CharField(max_length=128)
@@ -200,7 +207,7 @@ class Publish(models.Model):
 
     def run(self):
         try:
-            self.site.get_engine().render(self.site, post=self.post)
+            self.site.get_engine().render(self.site, post=self.post, force=self.force, purge=self.purge)
             self.site.get_deployer().deploy(self.site, post=self.post, force=self.force, purge=self.purge)
             # self.site.get_publishers().publish()
             self.success = True

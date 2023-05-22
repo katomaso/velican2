@@ -2,12 +2,12 @@ import boto3
 import mimetypes
 
 from . import logger
+from .. import IDeployer
 from datetime import datetime
 from django.apps import AppConfig
 from django.conf import settings
 
-
-class App(AppConfig):
+class AWS(AppConfig, IDeployer):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'velican2.deployers.aws'
 

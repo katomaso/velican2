@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Site, Page, Post, Publish
+from .models import Category, Link, Site, Page, Post, Publish
 
 class PublishAdmin(admin.ModelAdmin):
     list_display = ("site", "success", "finished", "message", "force")
@@ -20,6 +20,7 @@ class PageAdmin(admin.ModelAdmin):
 # Register your models here.
 admin.site.register(Site, admin.ModelAdmin)
 admin.site.register(Category, CategoryAdmin)
+admin.site.register(Link, admin.ModelAdmin)
 admin.site.register(Page, PageAdmin)
 admin.site.register(Post, PostAdmin)
 admin.site.register(Publish, PublishAdmin)
