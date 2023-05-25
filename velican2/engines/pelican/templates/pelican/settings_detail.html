@@ -1,0 +1,6 @@
+{% extends "pelican/base.html" %}
+
+
+{% block content %}
+Theme: {{object.theme}} <a href="{% url 'pelican:themes' id=object.id %}">change</a>
+{% endblock %}

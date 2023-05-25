@@ -1,51 +1,31 @@
 from django.contrib import admin
 from django.utils.translation import gettext as _
 
-from .models import Theme, ThemeSource, Settings
+from .models import Theme, Settings
 
 
 class ThemeAdmin(admin.ModelAdmin):
-    list_display = ("name", "installed", "updated")
-    readonly_fields = ("installed", "updated", "log")
-    actions = ['install', 'update', ]
-
-    @admin.action(description=_('Install selected theme(s)'))
-    def install(self, request, queryset):
-        for object in queryset.all():
-            object.install(save=True)
-
-    @admin.action(description=_('Update selected theme(s)'))
-    def update(self, request, queryset):
-        for object in queryset.all():
-            object.update(save=True)
-
-class ThemeSourceAdmin(admin.ModelAdmin):
-    list_display = ("url", "multiple", "downloaded", "installed")
+    list_display = ("name", "downloaded", "installed", "url")
     readonly_fields = ("updated", "downloaded", "installed", "path", "log")
-    actions = ['install', 'update', "download", "clear"]
+    actions = ["download", 'install', 'update']
     actions_on_top = True
 
-    @admin.action(description=_('Download the reposiotry using git clone'))
+    @admin.action(description=_('Download the URL'))
     def download(self, request, queryset):
         for object in queryset.all():
             object.download(save=True)
 
-    @admin.action(description=_('Create a Theme object from the cloned repository'))
+    @admin.action(description=_('Install into pelican'))
     def install(self, request, queryset):
         for object in queryset.all():
-            object.install(save=True)
+            object.install()
 
-    @admin.action(description=_('Update the repository by running git pull'))
+    @admin.action(description=_('Update repository'))
     def update(self, request, queryset):
         for object in queryset.all():
             object.update(recurse=True, save=True)
 
-    @admin.action(description=_('Remove cloned directory and reset source state'))
-    def clear(self, request, queryset):
-        for object in queryset.all():
-            object.clear(save=True)
 
 # Register your models here.
 admin.site.register(Theme, ThemeAdmin)
-admin.site.register(ThemeSource, ThemeSourceAdmin)
 admin.site.register(Settings, admin.ModelAdmin)

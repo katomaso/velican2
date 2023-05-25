@@ -17,10 +17,13 @@ class PageAdmin(admin.ModelAdmin):
     list_display = ("title", "site", "slug")
     prepopulated_fields = {"slug": ("title",)}
 
+class LinkAdmin(admin.ModelAdmin):
+    list_display = ("title", "site")
+
 # Register your models here.
 admin.site.register(Site, admin.ModelAdmin)
 admin.site.register(Category, CategoryAdmin)
-admin.site.register(Link, admin.ModelAdmin)
+admin.site.register(Link, LinkAdmin)
 admin.site.register(Page, PageAdmin)
 admin.site.register(Post, PostAdmin)
 admin.site.register(Publish, PublishAdmin)

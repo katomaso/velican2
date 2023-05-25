@@ -1,0 +1,10 @@
+{% extends "pelican/base.html" %}
+
+
+{% block content %}
+{% for object in object_list %}
+<ul>
+    <li><a href="{% url 'pelican:settings' id=object.id %}">{{object.site.domain}}/{{object.site.path}}</a></li>
+</ul>
+{% endfor %}
+{% endblock %}

@@ -6,3 +6,4 @@ markdown
 pelican
 Pillow
 boto3
+toml

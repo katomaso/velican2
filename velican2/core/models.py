@@ -33,6 +33,7 @@ ENGINE_CHOICES = tuple((engine, engine.title()) for engine in engines.engines)
 class Site(models.Model):
     domain = models.CharField(max_length=32, db_index=True, help_text="Example: example.com", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+\.?)+$'), ))
     path = models.CharField(max_length=32, default="", blank=True, help_text="Fill only if your site is under a path (e.g. \"/blog\")", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+/?)*$'), ))
+    admin = models.ForeignKey(auth.User, on_delete=models.CASCADE, related_name="+")
     staff = models.ManyToManyField(auth.User)
     lang = models.CharField(max_length=48, choices=LANG_CHOICES)
     timezone = models.CharField(max_length=128, default="Europe/Prague")
@@ -89,6 +90,12 @@ class Site(models.Model):
     def absolutize(self, path):
         return ("https://" if self.secure else "http://") + self.domain + self.path
 
+    def can_add_content(self, user: auth.User):
+        return self.admin == user or self.staff.contains(user)
+
+    def can_manage(self, user: auth.User):
+        return self.admin == user
+
 
 class Category(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
@@ -108,8 +115,28 @@ class Link(models.Model):
     """Links available in the page header part"""
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     title = models.CharField(max_length=128)
-    link = models.CharField(max_length=128)
+    url = models.CharField(max_length=128)
 
+    __str__ = lambda self: self.title
+
+    def save(self, **kwargs):
+        if not self.url.startswith("http"):
+            self.url = "https://" + self.url
+        return super().save(**kwargs)
+
+
+class Social(models.Model):
+    """Links to social media of the creator"""
+    site = models.ForeignKey(Site, on_delete=models.CASCADE)
+    title = models.CharField(max_length=128)
+    url = models.CharField(max_length=128)
+
+    __str__ = lambda self: self.title
+
+    def save(self, **kwargs):
+        if not self.url.startswith("http"):
+            self.url = "https://" + self.url
+        return super().save(**kwargs)
 
 class Content(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
@@ -119,6 +146,8 @@ class Content(models.Model):
     content = models.TextField()
     created = models.DateTimeField(auto_now_add=datetime.utcnow)
     updated = models.DateTimeField(auto_now=datetime.utcnow)
+
+    __str__ = lambda self: self.title
 
     class Meta:
         abstract = True
@@ -130,7 +159,7 @@ class Content(models.Model):
                 raise ValidationError("You are editing an outdated version")
 
     def can_edit(self, user: auth.User):
-        return self.site.staff.contains(user)
+        return self.site.can_add_content(user)
 
     def save(self, user=None, **kwargs):
         if user and not self.can_edit(user):

@@ -1,7 +1,7 @@
 import io
+import toml
 import pelican
 import pelican.paginator
-import re
 import shutil
 import subprocess
 
@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.files import File
 from django.db import models
 
 from django.utils.translation import gettext as _
@@ -22,11 +23,19 @@ def pelican_themes_err(msg:str, die=None):
     raise RuntimeError(msg)
 pelican_themes.err = pelican_themes_err
 
+def theme_upload_to(instance, filename):
+    return f"themes/{instance.name}/{Path(filename).name}"
 
-class ThemeSource(models.Model):
+class Theme(models.Model):
     """Git URL to the theme(s) that will be downloaded and if `not multiple` then installed automatically"""
-    url = models.CharField(max_length=256, null=False, primary_key=True)
-    multiple = models.BooleanField(default=False, help_text="Check when the repository contains multiple themes. You cannot install them easily then")
+    name = models.CharField(max_length=32, blank=True, primary_key=True, help_text="Must be set explicitely for cloning a repo under different name")
+    url = models.CharField(max_length=256, null=False)
+    description = models.TextField(blank=True, null=True)
+    image = models.ImageField(blank=True, null=True, upload_to=theme_upload_to)
+    image1 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to)
+    image2 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to)
+    theme_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
+    user_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
     updated = models.DateTimeField(null=True, blank=True)
     log = models.TextField(null=True)
 
@@ -38,176 +47,131 @@ class ThemeSource(models.Model):
 
     @property
     def installed(self):
-        return self.themes.count() > 0 or Theme.objects.filter(name=self.name).count() > 0
-
-    @property
-    def name(self):
-        return re.search(r'/([^/]+)\.git', self.url).group(1)
+        if not self.name:
+            return False
+        return self.name in [Path(path).stem for path in pelican_themes.themes()]
 
     @property
     def path(self):
         return settings.PELICAN_THEMES / self.name
 
     def download(self, save=True):
+        """Download theme from given URL to settings.PELICAN_THEMES path"""
+        proc = None
         if self.downloaded:
-            return True
-        proc = subprocess.Popen(
-            ["git", "clone", "--recurse-submodules", self.url, self.name],
-            cwd=settings.PELICAN_THEMES, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+            proc = subprocess.Popen( # update
+                ["git", "pull"], cwd=str(self.path),
+                stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+        else:
+            proc = subprocess.Popen( # download
+                ["git", "clone", "--recurse-submodules", self.url, self.name],
+                cwd=settings.PELICAN_THEMES, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
         if proc.wait() == 0:
-            self.updated = datetime.now()
             self.log = None
         else:
             self.log = proc.stdout.read()
-            logger.debug(self.log)
+            logger.error(self.log)
+
+        image_paths = [path for path in Path(self.path).iterdir()
+            if path.suffix in (".jpg", ".jpeg", ".png")]
+        logger.debug(f"Found {len(image_paths)} images {image_paths}")
+        self.image=File(image_paths[0].open("rb")) if len(image_paths) > 0 else None,
+        self.image1=File(image_paths[1].open("rb")) if len(image_paths) > 1 else None,
+        self.image2=File(image_paths[2].open("rb")) if len(image_paths) > 2 else None,
+        if not self.description:
+            self.description=self.readme
         if save:
             self.save()
         return proc.poll() == 0
 
-    def update(self, recurse=True, save=True):
-        proc = subprocess.Popen(
-            ["git", "pull",  "--recurse-submodules"],
-            cwd=str(self.path), stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
-        if proc.wait() == 0:
-            self.updated = datetime.now()
-            self.log = None
-            if recurse:
-                for theme in self.themes.all():
-                    theme.update()
-        else:
-            self.log = proc.stdout.read()
-            logger.debug(self.log)
+    @property
+    def readme(self):
+        for path in Path(self.path).iterdir():
+            if "readme" in str(path).lower():
+                return path.read_text(encoding="utf-8")
+        return None
+
+    def install(self, save=True):
+        """Install the theme into pelican and django webserver"""
+        if not self.downloaded:
+            raise ValidationError("You must download the theme before installing it")
+        if self.installed:
+            return True
+        try:
+            pelican_themes.symlink(str(self.path), v=False)
+        except Exception as e:
+            self.log = str(e)
+            logger.error(str(e))
         if save:
-            return self.save()
-        return self.poll() == 0
-
-    def install(self):
-        if self.multiple or self.installed:
-            return None
-        return Theme.objects.create(
-            source=self,
-        ).installed
-
-    def clear(self, save=True):
-        self.path.unlink()
-        self.updated = None
-        self.log = None
-        if save:
-            return self.save()
-
-    def delete(self, **kwargs):
-        self.clear()
-        return super().delete(**kwargs)
+            self.save()
 
     def save(self, **kwargs):
+        if not self.name:
+            self.name = Path(self.url).stem
         if self.url.startswith("https") and not self.url.endswith(".git"):
             self.url += ".git"
         if not self.downloaded:
             self.download(save=False)
         if self.downloaded and not self.installed:
-            self.install()
+            self.install(save=False)
         return super().save(**kwargs)
-
-
-def is_theme(path):
-    return path.is_dir()
-
-
-class Theme(models.Model):
-    name = models.CharField(max_length=32, blank=True, primary_key=True, help_text="Must be set explicitely for Multi Theme Source")
-    mapping = models.TextField(blank=True, null=True, help_text="Jinja code to define necessary variables for the theme")
-    installed = models.BooleanField(default=False)
-    updated = models.DateTimeField(auto_now_add=True)
-    log = models.TextField(null=True)
-    source = models.ForeignKey(ThemeSource, on_delete=models.SET_NULL, null=True, related_name="themes")
-
-    class Meta:
-        verbose_name = _("Theme")
-        verbose_name_plural = _("Themes")
-
-    @property
-    def screenshots_jpeg(self):
-        return [io.FileIO(path, mode='r', closefd=True)
-                for path in Path(self.path).iterdir()
-                if str(path).endswith("jpg") or str(path).endswith("jpeg")]
-
-    @property
-    def screenshots_png(self):
-        return [io.FileIO(path, mode='r', closefd=True)
-                for path in self.path.iterdir()
-                if str(path).endswith("png")]
-
-    @property
-    def path(self):
-        if not self.source:
-            raise RuntimeError("Builtin themes have no path")
-        if self.source.multiple:
-            return self.source.path / self.name
-        return self.source.path
-
-    __str__ = lambda self: self.name
-
-    def update(self, save=True):
-        if not self.installed:
-            return
-        try:
-            pelican_themes.install(str(self.path), u=True, v=False)
-            self.updated = datetime.now()
-        except Exception as e:
-            self.log = str(e)
-        if save:
-            self.save()
-
-    def install(self, save=True):
-        if self.installed:
-            return
-        try:
-            pelican_themes.install(str(self.path), v=False)
-            self.installed = True
-        except Exception as e:
-            self.log = str(e)
-        if save:
-            self.save()
 
     def delete(self, **kwargs):
-        if self.installed:
-            try:
-                pelican_themes.remove(self.name, v=False)
-            except Exception as e:
-                logger.warn(str(e))
+        pelican_themes.remove(self.name, v=False) # uninstall
+        self.path.unlink() # remove
         return super().delete(**kwargs)
 
-    def save(self, **kwargs):
-        if not self.name:
-            self.name = self.source.name
-        if self.source and not is_theme(self.path):
-            raise ValidationError(str(self.path) + " is not a theme directory")
-        self.install(save=False)
-        return super().save(**kwargs)
+    def update(self, save=True):
+        self.download(save=save)
+        self.install(save=save)
+        self.updated = datetime.now()
+        if save:
+            return self.save()
+
+    def update_conf(self, conf):
+        """Update site's pelican configuration using mapping that will requires specific keys"""
+        if self.theme_settings:
+            mapping = toml.loads(self.theme_settings)
+            for key, value in mapping.items:
+                if isinstance(value, str) and value.startswith("conf."):
+                    conf_key = value.split(".")[1]
+                    if hasattr(conf, conf_key):
+                        setattr(conf, key, getattr(conf, conf_key))
+                        logger.debug(f'Re-using conf.{conf_key} as key')
+                    else:
+                        logger.warn(f'Key "{conf_key}" does not exist in `conf`')
+                else:
+                    setattr(conf, key, value)
+        return conf
 
 
 class Settings(models.Model):
     POST_URL_TEMPLATES = (
-        ('/{slug}.html', f"<{_('slug')}>.html"),
-        ('/{slug}/index.html', f"<{_('slug')}>/index.html"),
-        ('/{date:%Y}/{slug}.html', f"<{_('year')}>/<{_('slug')}>.html"),
-        ('/{date:%Y}/{date:%b}/{slug}.html', f"<{_('year')}>/<{_('month')}>/<{_('slug')}>.html"),
-        ('/{category}/{slug}.html', f"<{_('author')}>/<{_('slug')}>.html"),
-        ('/{category}/{slug}.html', f"<{_('category')}>/<{_('slug')}>.html"),
-        ('/{category}/{date:%Y}/{slug}.html', f"<{_('category')}>/<{_('year')}>/<{_('slug')}>.html"),
+        ('{slug}.html', f"<{_('slug')}>.html"),
+        ('{slug}/index.html', f"<{_('slug')}>/index.html"),
+        ('{date:%Y}/{slug}.html', f"<{_('year')}>/<{_('slug')}>.html"),
+        ('{date:%Y}/{date:%b}/{slug}.html', f"<{_('year')}>/<{_('month')}>/<{_('slug')}>.html"),
+        ('{category}/{slug}.html', f"<{_('author')}>/<{_('slug')}>.html"),
+        ('{category}/{slug}.html', f"<{_('category')}>/<{_('slug')}>.html"),
+        ('{category}/{date:%Y}/{slug}.html', f"<{_('category')}>/<{_('year')}>/<{_('slug')}>.html"),
     )
     site = models.OneToOneField(core.Site, related_name="pelican", on_delete=models.CASCADE)
     theme = models.ForeignKey(Theme, on_delete=models.DO_NOTHING)
-    show_page_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display pages in menu"))
-    show_category_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display categories in menu"))
+    show_pages_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display pages in menu"))
+    show_categories_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display categories in menu"))
     post_url_template = models.CharField(max_length=255, choices=POST_URL_TEMPLATES, default=POST_URL_TEMPLATES[0][0])
     page_url_prefix = models.CharField(max_length=35, blank=True, default="", help_text=_("Pages URL prefix (pages urls will look like 'prefix/{slug}.html')"))
     category_url_prefix = models.CharField(max_length=35, default=_("category"), help_text=_("Category URL prefix (pages urls will look like 'prefix/{slug}.html')"))
     author_url_prefix = models.CharField(max_length=35, default=_("author"), help_text=_("Author URL prefix (pages urls will look like 'prefix/{slug}.html')"))
+    tags_url_prefix = models.CharField(max_length=35, default=_("tags"), help_text=_("Tags URL prefix (it will look like 'prefix/{slug}.html')"))
+    show_internal_pages_author = models.BooleanField(default=False, help_text=_("Include authors page"))
+    show_internal_pages_categories = models.BooleanField(default=True, help_text=_("Include categories page"))
+    show_internal_pages_tags = models.BooleanField(default=True, help_text=_("Include tags page"))
     facebook = models.CharField(max_length=128, null=True, blank=True)
     twitter = models.CharField(max_length=128, null=True, blank=True)
     linkedin = models.CharField(max_length=128, null=True, blank=True)
     github = models.CharField(max_length=128, null=True, blank=True)
+    instagram = models.CharField(max_length=128, null=True, blank=True)
 
     class Meta:
         verbose_name = _("Settings")
@@ -217,15 +181,19 @@ class Settings(models.Model):
 
     @property
     def page_url_template(self):
-        return (("/" + self.page_url_prefix + "/") if self.page_url_prefix else "/") + "{slug}.html"
+        return ((self.page_url_prefix + "/") if self.page_url_prefix else "") + "{slug}.html"
 
     @property
     def category_url_template(self):
-        return (("/" + self.category_url_prefix + "/") if self.category_url_prefix else "/") + "{slug}.html"
+        return ((self.category_url_prefix + "/") if self.category_url_prefix else "") + "{slug}.html"
 
     @property
     def author_url_template(self):
-        return (("/" + self.author_url_prefix + "/") if self.author_url_prefix else "/") + "{slug}.html"
+        return ((self.author_url_prefix + "/") if self.author_url_prefix else "") + "index.html"
+
+    @property
+    def tags_url_template(self):
+        return ((self.tags_url_prefix + "/") if self.tags_url_prefix else "") + "index.html"
 
     def save(self, **kwargs):
         self.conf["PATH"].mkdir(exist_ok=True, parents=True)
@@ -243,24 +211,17 @@ class Settings(models.Model):
     def conf(self):
         if hasattr(self, '_settings'):
             return self._settings
-        self._settings = pelican.settings.DEFAULT_CONFIG.copy()
+        self._settings = dict()
+        self._settings.update(pelican.settings.DEFAULT_CONFIG)
+        self._settings.update(settings.PELICAN_DEFAULT_SETTINGS)
         self._settings.update({
-            'SITEURL': self.site.absolutize("/"), # give the full URL for the root of the blog
-            'FEED_DOMAIN': self.site.absolutize("/"), # give the full URL for the root of the blog
-            'SITENAME': self.site.title,
             'PATH': settings.PELICAN_CONTENT / self.site.domain / self.site.path,
-            'PAGE_PATHS': ["pages", ],
-            'ARTICLE_PATHS': ["content", ],
-            'STATIC_PATHS': ['images', ],
-            'STATIC_CREATE_LINKS': True,  #  create (sym)links to static files instead of copying them
-            'STATIC_CHECK_IF_MODIFIED': True,
-            'DELETE_OUTPUT_DIRECTORY': False,
-            'CACHE_CONTENT': True, # cache generated files
-            'LOAD_CONTENT_CACHE': True,
             'ARTICLE_URL': (self.post_url_template if not self.post_url_template.endswith("index.html") else self.post_url_template[:-10]).lstrip("/"),
-            'ARTICLE_SAVE_AS': self.post_url_template.lstrip("/"),
+            'ARTICLE_SAVE_AS': self.post_url_template,
             'PAGE_URL': self.page_url_template,
             'PAGE_SAVE_AS': self.page_url_template,
+            'TAGS_URL': self.tags_url_template,
+            'TAGS_SAVE_AS': self.tags_url_template,
             'CATEGORY_URL': self.category_url_template,
             'CATEGORY_SAVE_AS': self.category_url_template,
             'AUTHOR_URL': self.author_url_template,
@@ -268,9 +229,46 @@ class Settings(models.Model):
             'OUTPUT_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path,
             'THEME': str(Path(pelican_themes._THEMES_PATH, self.theme.name)),
             # Why the heck the dafault PAGINATION_PATTERNS are broken?!
-            'PAGINATION_PATTERNS': [pelican.paginator.PaginationRule(*x) for x in pelican.settings.DEFAULT_CONFIG['PAGINATION_PATTERNS']]
+            'PAGINATION_PATTERNS': [pelican.paginator.PaginationRule(*x) for x in pelican.settings.DEFAULT_CONFIG['PAGINATION_PATTERNS']],
+            'FACEBOOK_PROFILE': self.facebook,
+            'TWITTER_PROFILE': self.twitter,
+            'LINKEDIN_PROFILE': self.linkedin,
+            'GITHUB_PROFILE': self.github,
+            'INSTAGRAM_PROFILE': self.instagram,
+            'DISPLAY_CATEGORIES_ON_MENU': self.show_categories_in_menu,
+            'DISPLAY_PAGES_ON_MENU': self.show_pages_in_menu,
         })
+
+        # internal_menu_items = []
+        # if self.show_internal_pages_tags:
+        #     internal_menu_items.append((self.tags_url_prefix.title, self._settings['TAGS_URL'], self._settings['TAGS_SAVE_AS']))
+        # if self.show_internal_pages_author:
+        #     internal_menu_items.append((self.author_url_prefix.title, self._settings['AUTHOR_URL'], self._settings['AUTHOR_SAVE_AS']))
+        # if self.show_internal_pages_categories:
+        #     internal_menu_items.append((self.category_url_prefix.title, self._settings['CATEGORY_URL'], self._settings['CATEGORY_SAVE_AS']))
+        # 'MENU_INTERNAL_PAGES': internal_menu_items
+
+        self._settings.update({
+            'SITEURL': self.site.absolutize("/"), # give the full URL for the root of the blog
+            'SITENAME': self.site.title,
+            'SITEDESCRIPTION': self.site.subtitle,
+            'SITELOGO': self.site.logo.name,
+            'FEED_DOMAIN': self.site.absolutize("/"), # give the full URL for the root of the blog
+            'MENUITEMS': core.Link.objects.filter(site=self.site).values_list("title", "url"),
+        })
+
+        self.theme.update_conf(self._settings)
+        self.user.update_conf(self._settings)
         return self._settings
+
+    @property
+    def user(self):
+        instance, _ = ThemeSettings.objects.get_or_create(
+            pelican=self,
+            theme=self.theme,
+            defaults={"settings": self.theme.user_settings}
+        )
+        return instance
 
     def get_source_path(self):
         """Returns source path for the site assigned to this pelican settings.
@@ -312,3 +310,18 @@ class Settings(models.Model):
     def publish(self):
         proc = pelican.Pelican(self.conf)
         proc.run()
+
+
+class ThemeSettings(models.Model):
+    """Settings for a theme per site - each site can modify their theme settings"""
+    pelican = models.ForeignKey(Settings, on_delete=models.CASCADE)
+    theme = models.ForeignKey(Theme, on_delete=models.CASCADE)
+    settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
+
+    def update_conf(self, conf):
+        """Update site's pelican configuration using mapping that will requires specific keys"""
+        if self.settings:
+            mapping = toml.loads(self.settings)
+            for key, value in mapping.items:
+                setattr(conf, key, value)
+        return conf

@@ -1,0 +1,29 @@
+{% extends "pelican/base.html" %}
+{% load static %}
+
+{% block style %}
+    {{ super }}
+    form.selected {
+        background-color: #eeffee;
+    }
+{% endblock %}
+
+{% block content %}
+
+{% for theme in object_list %}
+<form method="POST" {% if theme == pelican.theme %}class="selected"{% endif %}>
+    <h3>{{theme.name}}</h3>
+    {% csrf_token %}
+    <input type="hidden" name="theme_id" value="{{theme.id}}"/>
+    <textarea name="settings" cols="30" rows="10">{% if theme.id in settings %}{{settings}}{% else %}{{theme.mapping}}{% endif %}</textarea>
+    <input type="submit" value="Select">
+    <div class="gallery">
+{% if theme.image %}<img src="{% get_media_prefix %}{{theme.image.name}}">{% endif %}
+{% if theme.image1 %}<img src="{% get_media_prefix %}{{theme.image1.name}}">{% endif %}
+{% if theme.image2 %}<img src="{% get_media_prefix %}{{theme.image2.name}}">{% endif %}
+    </div>
+</form>
+<br>
+{% endfor %}
+
+{% endblock %}

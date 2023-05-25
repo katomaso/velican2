@@ -77,15 +77,25 @@ WSGI_APPLICATION = 'velican2.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'sqlite3.db',
+        'NAME': BASE_DIR / 'runtime' / 'sqlite3.db',
     }
 }
 
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = BASE_DIR / 'runtime' / 'media'
 
 PELICAN_THEMES = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "runtime/themes/"))
 PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", BASE_DIR / "runtime/pelican/"))
 PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", BASE_DIR / "runtime/www/"))
+PELICAN_DEFAULT_SETTINGS = {
+    'PAGE_PATHS': ["pages", ],
+    'ARTICLE_PATHS': ["content", ],
+    'STATIC_PATHS': ['images', ],
+    'STATIC_CREATE_LINKS': True,  #  create (sym)links to static files instead of copying them
+    'STATIC_CHECK_IF_MODIFIED': True,
+    'DELETE_OUTPUT_DIRECTORY': False,
+    'CACHE_CONTENT': True, # cache generated files
+    'LOAD_CONTENT_CACHE': True,
+}
 
 # set to None or an empty string to disable caddy deployment
 CADDY_URL = os.getenv("CADDY_URL", "http://localhost:2019")
@@ -139,6 +149,7 @@ SITE_ID = 1
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 STATIC_URL = 'static/'
+MEDIA_URL = 'media/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
