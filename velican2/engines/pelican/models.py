@@ -4,6 +4,8 @@ import pelican
 import pelican.paginator
 import shutil
 import subprocess
+import urllib
+import zipfile
 
 from pathlib import Path
 from datetime import datetime
@@ -49,7 +51,7 @@ class Theme(models.Model):
     def installed(self):
         if not self.name:
             return False
-        return self.name in [Path(path).stem for path in pelican_themes.themes()]
+        return self.name in [Path(path).stem for path, _ in pelican_themes.themes()]
 
     @property
     def path(self):
@@ -57,32 +59,52 @@ class Theme(models.Model):
 
     def download(self, save=True):
         """Download theme from given URL to settings.PELICAN_THEMES path"""
-        proc = None
-        if self.downloaded:
-            proc = subprocess.Popen( # update
-                ["git", "pull"], cwd=str(self.path),
-                stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+        if self.url.endswith(".zip"):
+            zip_path = self.path.with_suffix(".zip")
+            urllib.request.urlretrieve(self.url, zip_path)
+            z = zipfile.ZipFile(zip_path)
+            l = z.infolist()
+            if l[1].filename.strip("/").count("/") > 0:
+                self.name = l[0].filename.strip("/")
+                logger.debug("Only one folder found in the zipfile: " + self.name)
+                z.extractall(settings.PELICAN_THEMES)
+            else:
+                logger.debug("Archive contains multiple files - extracting to: " + self.path)
+                z.extractall(self.path)
+            z.close()
+            zip_path.unlink()
         else:
-            proc = subprocess.Popen( # download
-                ["git", "clone", "--recurse-submodules", self.url, self.name],
-                cwd=settings.PELICAN_THEMES, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
-        if proc.wait() == 0:
-            self.log = None
-        else:
-            self.log = proc.stdout.read()
-            logger.error(self.log)
+            if self.url.startswith("https") and not self.url.endswith(".git"):
+                self.url += ".git"
+            proc = None
+            if self.downloaded:
+                proc = subprocess.Popen( # update
+                    ["git", "pull"], cwd=str(self.path),
+                    stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+            else:
+                proc = subprocess.Popen( # download
+                    ["git", "clone", "--recurse-submodules", self.url, self.name],
+                    cwd=settings.PELICAN_THEMES, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+            if proc.wait() == 0:
+                self.log = None
+            else:
+                self.log = proc.stdout.read()
+                logger.error(self.log)
+                if save:
+                    self.save()
+                return False
 
         image_paths = [path for path in Path(self.path).iterdir()
             if path.suffix in (".jpg", ".jpeg", ".png")]
         logger.debug(f"Found {len(image_paths)} images {image_paths}")
-        self.image=File(image_paths[0].open("rb")) if len(image_paths) > 0 else None,
-        self.image1=File(image_paths[1].open("rb")) if len(image_paths) > 1 else None,
-        self.image2=File(image_paths[2].open("rb")) if len(image_paths) > 2 else None,
+        self.image = File(image_paths[0].open("rb")) if len(image_paths) > 0 else None
+        self.image1 = File(image_paths[1].open("rb")) if len(image_paths) > 1 else None
+        self.image2 = File(image_paths[2].open("rb")) if len(image_paths) > 2 else None
         if not self.description:
-            self.description=self.readme
+            self.description = self.readme
         if save:
             self.save()
-        return proc.poll() == 0
+        return True
 
     @property
     def readme(self):
@@ -98,7 +120,7 @@ class Theme(models.Model):
         if self.installed:
             return True
         try:
-            pelican_themes.symlink(str(self.path), v=False)
+            pelican_themes.install(str(self.path), v=False)
         except Exception as e:
             self.log = str(e)
             logger.error(str(e))
@@ -108,8 +130,6 @@ class Theme(models.Model):
     def save(self, **kwargs):
         if not self.name:
             self.name = Path(self.url).stem
-        if self.url.startswith("https") and not self.url.endswith(".git"):
-            self.url += ".git"
         if not self.downloaded:
             self.download(save=False)
         if self.downloaded and not self.installed:
@@ -132,16 +152,16 @@ class Theme(models.Model):
         """Update site's pelican configuration using mapping that will requires specific keys"""
         if self.theme_settings:
             mapping = toml.loads(self.theme_settings)
-            for key, value in mapping.items:
+            for key, value in mapping.items():
                 if isinstance(value, str) and value.startswith("conf."):
                     conf_key = value.split(".")[1]
-                    if hasattr(conf, conf_key):
-                        setattr(conf, key, getattr(conf, conf_key))
+                    if conf_key in conf:
+                        conf[key] = conf[conf_key]
                         logger.debug(f'Re-using conf.{conf_key} as key')
                     else:
                         logger.warn(f'Key "{conf_key}" does not exist in `conf`')
                 else:
-                    setattr(conf, key, value)
+                    conf[key] = value
         return conf
 
 
@@ -252,7 +272,7 @@ class Settings(models.Model):
             'SITEURL': self.site.absolutize("/"), # give the full URL for the root of the blog
             'SITENAME': self.site.title,
             'SITEDESCRIPTION': self.site.subtitle,
-            'SITELOGO': self.site.logo.name,
+            'SITELOGO': self.site.logo.url,
             'FEED_DOMAIN': self.site.absolutize("/"), # give the full URL for the root of the blog
             'MENUITEMS': core.Link.objects.filter(site=self.site).values_list("title", "url"),
         })
@@ -322,6 +342,7 @@ class ThemeSettings(models.Model):
         """Update site's pelican configuration using mapping that will requires specific keys"""
         if self.settings:
             mapping = toml.loads(self.settings)
-            for key, value in mapping.items:
-                setattr(conf, key, value)
+            for key, value in mapping.items():
+                logger.debug(f"UserSettings is adding {key}={value}")
+                conf[key] = value
         return conf

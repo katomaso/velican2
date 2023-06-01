@@ -2,9 +2,9 @@
   pk: 1
   fields:
     url: https://github.com/tcarwash/blue-penguin-dark.git
-    user_settings: >
-      DARK_LIGHT_SWITCHING_OFF=True
-      DISPLAY_HEADER = True
-      DISPLAY_FOOTER = True
-      DISPLAY_HOME   = True
-      DISPLAY_MENU   = True
+    user_settings: |
+      DARK_LIGHT_SWITCHING_OFF=true
+      DISPLAY_HEADER = true
+      DISPLAY_FOOTER = true
+      DISPLAY_HOME   = true
+      DISPLAY_MENU   = true

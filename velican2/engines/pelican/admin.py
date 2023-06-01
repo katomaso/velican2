@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext as _
 
-from .models import Theme, Settings
+from .models import Theme, Settings, ThemeSettings
 
 
 class ThemeAdmin(admin.ModelAdmin):
@@ -28,4 +28,5 @@ class ThemeAdmin(admin.ModelAdmin):
 
 # Register your models here.
 admin.site.register(Theme, ThemeAdmin)
+admin.site.register(ThemeSettings, admin.ModelAdmin)
 admin.site.register(Settings, admin.ModelAdmin)

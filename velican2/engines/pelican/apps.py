@@ -27,7 +27,6 @@ class Engine(AppConfig):
             for (theme, _) in pelican_themes.themes():
                 logger.info(f"Found {theme} with pelican_themes - installing")
                 Theme.objects.get_or_create(name=Path(theme).parts[-1], defaults={
-                    "installed": True,
                     "updated": datetime.now(),
                 })
 
