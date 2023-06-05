@@ -8,3 +8,10 @@
       DISPLAY_FOOTER = true
       DISPLAY_HOME   = true
       DISPLAY_MENU   = true
+
+- model: publish.Theme
+  pk: 2
+  fields:
+    url: https://github.com/alexandrevicenzi/Flex/archive/refs/heads/v3.zip
+    theme_settings: |
+      LINKS = conf.MENUITEMS

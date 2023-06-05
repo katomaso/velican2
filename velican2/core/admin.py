@@ -17,6 +17,7 @@ class PageAdmin(admin.ModelAdmin):
     list_display = ("title", "site", "slug")
     prepopulated_fields = {"slug": ("title",)}
 
+
 class LinkAdmin(admin.ModelAdmin):
     list_display = ("title", "site")
 

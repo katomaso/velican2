@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.translation import gettext as _
 
-from .models import Theme, Settings, ThemeSettings
+from .models import Theme, Plugin, Settings, ThemeSettings
 
 
 class ThemeAdmin(admin.ModelAdmin):
@@ -25,8 +25,15 @@ class ThemeAdmin(admin.ModelAdmin):
         for object in queryset.all():
             object.update(recurse=True, save=True)
 
+class PluginAdmin(admin.ModelAdmin):
+    list_display = ("id", "default")
+    readonly_fields = ("name", )
+
+class ThemeSettingsAdmin(admin.ModelAdmin):
+    list_display = ("theme", "pelican")
 
 # Register your models here.
 admin.site.register(Theme, ThemeAdmin)
-admin.site.register(ThemeSettings, admin.ModelAdmin)
+admin.site.register(ThemeSettings, ThemeSettingsAdmin)
 admin.site.register(Settings, admin.ModelAdmin)
+admin.site.register(Plugin, PluginAdmin)

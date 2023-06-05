@@ -37,6 +37,7 @@ class Site(models.Model):
     staff = models.ManyToManyField(auth.User)
     lang = models.CharField(max_length=48, choices=LANG_CHOICES)
     timezone = models.CharField(max_length=128, default="Europe/Prague")
+    secure = models.BooleanField(default=True, help_text="The site is served via secured connection https")
 
     title = models.CharField(max_length=128, null=True)
     subtitle = models.CharField(max_length=128, null=True)
@@ -54,7 +55,12 @@ class Site(models.Model):
             ("caddy", "local Caddy server")
         ))
 
-    secure = models.BooleanField(default=True, help_text="The site is served via secured connection https")
+    webmentions = models.BooleanField(default=False, help_text="Should it use builtin webmentions service")
+    webmentions_external = models.CharField(max_length=256, null=True, help_text="URL of an external webmentions service")
+
+    matomo = models.BooleanField(default=False, help_text="Should it use builtin tracking service")
+    matomo_external = models.CharField(max_length=256, null=True, help_text="URL of an external tracking service")
+    matomo_external_id = models.CharField(max_length=64, null=True, help_text="SITE_ID for the external tracking service")
 
     class Meta:
         verbose_name = _("Site")
@@ -243,6 +249,8 @@ class Publish(models.Model):
         except Exception as e:
             self.message = str(e)
             self.success = False
+            import traceback
+            traceback.print_exception(e)
         finally:
             self.finished = datetime.utcnow()
             self.save()

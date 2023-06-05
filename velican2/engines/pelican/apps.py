@@ -29,6 +29,10 @@ class Engine(AppConfig):
                 Theme.objects.get_or_create(name=Path(theme).parts[-1], defaults={
                     "updated": datetime.now(),
                 })
+            Plugin = self.get_model("Plugin")
+            for plugin in pelican.load_plugins(settings.PELICAN_DEFAULT_SETTINGS):
+                logger.info(f"Found {plugin} with pelican.load_plugins() - installing")
+                Plugin.objects.get_or_create(id=pelican.get_plugin_name(plugin))
 
         post_save.connect(on_site_save, sender=apps.get_model("core", "Site"))
         post_save.connect(on_post_save, sender=apps.get_model("core", "Post"))

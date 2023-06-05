@@ -37,7 +37,7 @@ class Theme(models.Model):
     image1 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to)
     image2 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to)
     theme_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
-    user_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
+    user_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using toml syntax: KEY = 'value'")
     updated = models.DateTimeField(null=True, blank=True)
     log = models.TextField(null=True)
 
@@ -192,6 +192,7 @@ class Settings(models.Model):
     linkedin = models.CharField(max_length=128, null=True, blank=True)
     github = models.CharField(max_length=128, null=True, blank=True)
     instagram = models.CharField(max_length=128, null=True, blank=True)
+    plugins = models.ManyToManyField('pelican.Plugin', blank=True)
 
     class Meta:
         verbose_name = _("Settings")
@@ -216,10 +217,11 @@ class Settings(models.Model):
         return ((self.tags_url_prefix + "/") if self.tags_url_prefix else "") + "index.html"
 
     def save(self, **kwargs):
-        self.conf["PATH"].mkdir(exist_ok=True, parents=True)
-        (self.conf["PATH"] / self.conf['PAGE_PATHS'][0]).mkdir(exist_ok=True)
-        (self.conf["PATH"] / self.conf['ARTICLE_PATHS'][0]).mkdir(exist_ok=True)
-        self.conf["OUTPUT_PATH"].mkdir(exist_ok=True, parents=True)
+        conf = self.conf
+        Path(conf["PATH"]).mkdir(exist_ok=True, parents=True)
+        Path(conf["PATH"], conf['PAGE_PATHS'][0]).mkdir(exist_ok=True)
+        Path(conf["PATH"], conf['ARTICLE_PATHS'][0]).mkdir(exist_ok=True)
+        Path(conf["OUTPUT_PATH"]).mkdir(exist_ok=True, parents=True)
         return super().save(**kwargs)
 
     def delete(self, **kwargs):
@@ -235,7 +237,7 @@ class Settings(models.Model):
         self._settings.update(pelican.settings.DEFAULT_CONFIG)
         self._settings.update(settings.PELICAN_DEFAULT_SETTINGS)
         self._settings.update({
-            'PATH': settings.PELICAN_CONTENT / self.site.domain / self.site.path,
+            'PATH': str(settings.PELICAN_CONTENT / self.site.domain / self.site.path),
             'ARTICLE_URL': (self.post_url_template if not self.post_url_template.endswith("index.html") else self.post_url_template[:-10]).lstrip("/"),
             'ARTICLE_SAVE_AS': self.post_url_template,
             'PAGE_URL': self.page_url_template,
@@ -246,7 +248,7 @@ class Settings(models.Model):
             'CATEGORY_SAVE_AS': self.category_url_template,
             'AUTHOR_URL': self.author_url_template,
             'AUTHOR_SAVE_AS': self.author_url_template,
-            'OUTPUT_PATH': settings.PELICAN_OUTPUT / self.site.domain / self.site.path,
+            'OUTPUT_PATH': str(settings.PELICAN_OUTPUT / self.site.domain / self.site.path),
             'THEME': str(Path(pelican_themes._THEMES_PATH, self.theme.name)),
             # Why the heck the dafault PAGINATION_PATTERNS are broken?!
             'PAGINATION_PATTERNS': [pelican.paginator.PaginationRule(*x) for x in pelican.settings.DEFAULT_CONFIG['PAGINATION_PATTERNS']],
@@ -257,7 +259,32 @@ class Settings(models.Model):
             'INSTAGRAM_PROFILE': self.instagram,
             'DISPLAY_CATEGORIES_ON_MENU': self.show_categories_in_menu,
             'DISPLAY_PAGES_ON_MENU': self.show_pages_in_menu,
+            'ROBOTS': "noindex" if self.site.allow_crawlers else "all",
         })
+
+        social = []
+        if self.facebook:
+            social.append(('facebook', self.facebook))
+        if self.twitter:
+            social.append(('twitter', self.twitter))
+        if self.linkedin:
+            social.append(('linkedin', self.linkedin))
+        if self.github:
+            social.append(('github', self.github))
+        if self.instagram:
+            social.append(('instagram', self.instagram))
+        if social:
+            logger.debug(f"Social for {self}: {social}")
+            self._settings.update(SOCIAL=social)
+
+        plugins = list(Plugin.objects.all().filter(default=True).values_list("id", flat=True))
+        for plugin in self.plugins.all():
+            if plugin.default:
+                plugins.remove(plugin.name)
+            else:
+                plugins.append(plugin.name)
+        logger.debug(f"Plugins for {self}: {plugins}")
+        self._settings.update(PLUGINS=plugins)
 
         # internal_menu_items = []
         # if self.show_internal_pages_tags:
@@ -276,6 +303,14 @@ class Settings(models.Model):
             'FEED_DOMAIN': self.site.absolutize("/"), # give the full URL for the root of the blog
             'MENUITEMS': core.Link.objects.filter(site=self.site).values_list("title", "url"),
         })
+
+        if self.site.webmentions:
+            self._settings.update(WEBMENTION_URL=settings.WEBMENTION_URL)
+        elif self.site.webmentions_external:
+            self._settings.update(WEBMENTION_URL=self.site.webmentions_external)
+
+        if self.site.matomo:
+            self._settings.update(MATOMO_URL=self.site.matomo_external, MATOMO_SITE_ID=self.site.matomo_external_id)
 
         self.theme.update_conf(self._settings)
         self.user.update_conf(self._settings)
@@ -327,16 +362,18 @@ class Settings(models.Model):
                 lang=post.lang,
             )
 
-    def publish(self):
-        proc = pelican.Pelican(self.conf)
-        proc.run()
-
 
 class ThemeSettings(models.Model):
     """Settings for a theme per site - each site can modify their theme settings"""
     pelican = models.ForeignKey(Settings, on_delete=models.CASCADE)
     theme = models.ForeignKey(Theme, on_delete=models.CASCADE)
     settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
+
+    class Meta:
+        verbose_name = _("Theme Settings")
+        verbose_name_plural = _("Theme Settings")
+
+    __str__ = lambda self: f"{self.pelican} : {self.theme}"
 
     def update_conf(self, conf):
         """Update site's pelican configuration using mapping that will requires specific keys"""
@@ -346,3 +383,31 @@ class ThemeSettings(models.Model):
                 logger.debug(f"UserSettings is adding {key}={value}")
                 conf[key] = value
         return conf
+
+    def validate_settings(self, settings):
+        try:
+            toml.loads(settings)
+        except Exception as e:
+            raise ValidationError(e)
+
+
+class Plugin(models.Model):
+    """Available plugins"""
+    id = models.CharField(max_length=64, primary_key=True)
+    name = models.CharField(max_length=32, blank=True)
+    url = models.CharField(max_length=265, blank=True, null=True, help_text="Null for built-in plugins")
+    default = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        verbose_name = _("Plugin")
+        verbose_name_plural = _("Plugins")
+
+    __str__  = lambda self: self.name if not self.default else f"{self.name} (default)"
+
+    def save(self, **kwargs):
+        if not self.name:
+            if self.id.startswith("pelican.plugins."):
+                self.name = self.id.split(".")[-1]
+            else:
+                self.name = self.id
+        return super().save(**kwargs)
