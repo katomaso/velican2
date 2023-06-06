@@ -1,5 +1,7 @@
 import threading
 
+from pathlib import Path
+
 from datetime import datetime, timedelta
 
 from django.db import models
@@ -14,7 +16,7 @@ from velican2 import engines
 from velican2 import deployers
 
 from .managers import PublishManager
-
+from . import logger
 
 class UpdateException(Exception):
     pass
@@ -25,8 +27,11 @@ LANG_CHOICES = (
 )
 
 
-def site_logo_upload(self, filename):
-    return settings.MEDIA_ROOT / self.domain / self.path.strip("/") / filename
+def site_logo_upload(site, filename):
+    return Path(settings.MEDIA_ROOT / site.domain / site.path.strip("/") / filename).with_stem("logo")
+
+def site_heading_upload(site, filename):
+    return Path(settings.MEDIA_ROOT / site.domain / site.path.strip("/") / filename).with_stem("heading")
 
 ENGINE_CHOICES = tuple((engine, engine.title()) for engine in engines.engines)
 
@@ -42,6 +47,7 @@ class Site(models.Model):
     title = models.CharField(max_length=128, null=True)
     subtitle = models.CharField(max_length=128, null=True)
     logo = models.ImageField(blank=True, null=True, upload_to=site_logo_upload)
+    heading = models.ImageField(blank=True, null=True, upload_to=site_heading_upload)
 
     allow_crawlers = models.BooleanField(default=True, help_text="Allow search engines to index this page")
     allow_training = models.BooleanField(default=True, help_text="Allow AI engines to index this page")
@@ -56,11 +62,14 @@ class Site(models.Model):
         ))
 
     webmentions = models.BooleanField(default=False, help_text="Should it use builtin webmentions service")
-    webmentions_external = models.CharField(max_length=256, null=True, help_text="URL of an external webmentions service")
+    webmentions_external = models.CharField(max_length=256, blank=True, null=True, help_text="URL of an external webmentions service")
 
     matomo = models.BooleanField(default=False, help_text="Should it use builtin tracking service")
-    matomo_external = models.CharField(max_length=256, null=True, help_text="URL of an external tracking service")
-    matomo_external_id = models.CharField(max_length=64, null=True, help_text="SITE_ID for the external tracking service")
+    matomo_external = models.CharField(max_length=256, null=True, blank=True, help_text="URL of an external tracking service")
+    matomo_external_id = models.CharField(max_length=64, null=True, blank=True, help_text="SITE_ID for the external tracking service")
+
+    # google_adsense = 
+    google_analytics_code = models.CharField(max_length=64, null=True, blank=True, help_text="Your google analytics code UA-XYZ")
 
     class Meta:
         verbose_name = _("Site")
@@ -118,7 +127,7 @@ class Category(models.Model):
 
 
 class Link(models.Model):
-    """Links available in the page header part"""
+    """Links appear in the main menu beside your Pages but links lead (mainly) outside of your domain."""
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     title = models.CharField(max_length=128)
     url = models.CharField(max_length=128)
@@ -144,36 +153,50 @@ class Social(models.Model):
             self.url = "https://" + self.url
         return super().save(**kwargs)
 
+
+def content_heading_upload(content, filename):
+    return Path(settings.MEDIA_ROOT / content.site.domain / content.slug / filename).with_stem("heading")
+
 class Content(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     title = models.CharField(max_length=128)
     slug = models.CharField(max_length=64, validators=(validate_unicode_slug,))
     lang = models.CharField(max_length=5, choices=LANG_CHOICES)
     content = models.TextField()
-    created = models.DateTimeField(auto_now_add=datetime.utcnow)
-    updated = models.DateTimeField(auto_now=datetime.utcnow)
+    created = models.DateTimeField()
+    updated = models.DateTimeField()
+    heading = models.ImageField(blank=True, null=True, upload_to=content_heading_upload)
 
     __str__ = lambda self: self.title
 
     class Meta:
         abstract = True
 
+    # For some unknown reason the prev.updated is always like 90 seconds ahead
     def clean(self):
         if self.id: # model aready exists
             prev = Post.objects.get(id=self.id)
+            logger.debug(f"prev.updated {prev.updated} SHOULD BE <= self.updated {self.updated}")
             if prev.updated > self.updated:
                 raise ValidationError("You are editing an outdated version")
+        return super().clean()
 
     def can_edit(self, user: auth.User):
         return self.site.can_add_content(user)
 
     def save(self, user=None, **kwargs):
+        if not self.id:
+            self.created = datetime.now()
         if user and not self.can_edit(user):
             raise PermissionError("You don't have edit rights on this")
+        self.updated = datetime.now()
         super().save(**kwargs)
 
 
 class Page(Content):
+    """Page will appear in the top-menu of your main page (and other pages).
+    It is static pages that has value through the whole tile such as "about-me" and "services".
+    """
     class Meta:
         verbose_name = _("Page")
         verbose_name_plural = _("Pages")
@@ -189,6 +212,7 @@ class Page(Content):
 
 
 class Post(Content):
+    """Post has time-constrained value. It is news, actions and blog posts."""
     draft = models.BooleanField(default=True)
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)
     author = models.ForeignKey(auth.User, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)

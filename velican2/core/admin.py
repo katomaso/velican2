@@ -12,10 +12,12 @@ class CategoryAdmin(admin.ModelAdmin):
 class PostAdmin(admin.ModelAdmin):
     list_display = ("title", "site", "slug", "draft")
     prepopulated_fields = {"slug": ("title",)}
+    readonly_fields = ('created', 'updated',)
 
 class PageAdmin(admin.ModelAdmin):
     list_display = ("title", "site", "slug")
     prepopulated_fields = {"slug": ("title",)}
+    readonly_fields = ('created', 'updated',)
 
 
 class LinkAdmin(admin.ModelAdmin):

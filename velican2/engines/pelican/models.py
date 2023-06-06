@@ -33,9 +33,11 @@ class Theme(models.Model):
     name = models.CharField(max_length=32, blank=True, primary_key=True, help_text="Must be set explicitely for cloning a repo under different name")
     url = models.CharField(max_length=256, null=False)
     description = models.TextField(blank=True, null=True)
-    image = models.ImageField(blank=True, null=True, upload_to=theme_upload_to)
-    image1 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to)
-    image2 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to)
+    image = models.ImageField(blank=True, null=True, upload_to=theme_upload_to, help_text="Screenshot images showcasing the theme")
+    image1 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to, help_text="Screenshot images showcasing the theme")
+    image2 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to, help_text="Screenshot images showcasing the theme")
+    logo_size = models.CharField(max_length=7, null=True, blank=True, help_text="Ideal logo size in pixels; format: WxH (e.g. 350x200)")
+    heading_size = models.CharField(max_length=9, null=True, blank=True, help_text="Ideal heading size in pixels; format: WxH (e.g. 1280x600)")
     theme_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
     user_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using toml syntax: KEY = 'value'")
     updated = models.DateTimeField(null=True, blank=True)
@@ -299,7 +301,7 @@ class Settings(models.Model):
             'SITEURL': self.site.absolutize("/"), # give the full URL for the root of the blog
             'SITENAME': self.site.title,
             'SITEDESCRIPTION': self.site.subtitle,
-            'SITELOGO': self.site.logo.url,
+            'SITELOGO': "/" + Path(self.site.logo.name).name,
             'FEED_DOMAIN': self.site.absolutize("/"), # give the full URL for the root of the blog
             'MENUITEMS': core.Link.objects.filter(site=self.site).values_list("title", "url"),
         })
@@ -330,23 +332,23 @@ class Settings(models.Model):
         
         Don't worry - themes and plugins are stored elsewhere.
         """
-        return self.conf['PATH']
+        return Path(self.conf['PATH'])
 
     def get_output_path(self):
         """Returns the output path for the site assigned to this pelican settings"""
-        return self.conf['OUTPUT_PATH']
+        return Path(self.conf['OUTPUT_PATH'])
 
     def get_page_source_path(self, page: core.Page):
-        return self.conf['PATH'] / self.conf['PAGE_PATHS'][0] / (page.slug + ".md")
+        return Path(self.conf['PATH'], self.conf['PAGE_PATHS'][0], page.slug).with_suffix(".md")
 
     def get_post_source_path(self, post: core.Post):
-        return self.conf['PATH'] / self.conf['ARTICLE_PATHS'][0] / (post.slug + ".md")
+        return Path(self.conf['PATH'], self.conf['ARTICLE_PATHS'][0], post.slug).with_suffix(".md")
 
     def get_page_output_path(self, page: core.Page):
-        return self.conf['OUTPUT_PATH'] / self.get_page_url(page)
+        return Path(self.conf['OUTPUT_PATH'], self.get_page_url(page))
 
     def get_post_output_path(self, post: core.Post):
-        return self.conf['OUTPUT_PATH'] / self.get_post_url(post)
+        return Path(self.conf['OUTPUT_PATH'], self.get_post_url(post))
 
     def get_page_url(self, page: core.Page):
         """Return URL of given page."""
@@ -397,6 +399,7 @@ class Plugin(models.Model):
     name = models.CharField(max_length=32, blank=True)
     url = models.CharField(max_length=265, blank=True, null=True, help_text="Null for built-in plugins")
     default = models.BooleanField(default=False, db_index=True)
+    description = models.TextField(blank=True, null=True)
 
     class Meta:
         verbose_name = _("Plugin")

@@ -47,6 +47,11 @@ class Engine(AppConfig):
         settings = self._get_settings(site)
         if kwargs.get("purge", False):
             shutil.rmtree(settings.get_output_path())
+        logger.debug(f"Site logo name {site.logo.name}")
+        if site.logo:
+            logo_output_path = settings.get_output_path() / Path(site.logo.name).name
+            if not logo_output_path.exists():
+                shutil.copy2(site.logo.path, logo_output_path)
         proc = pelican.Pelican(settings.conf)
         proc.run()
 
@@ -127,17 +132,23 @@ def on_page_save(instance, **kwargs): # instance: core.Page
     pelican = Settings.objects.get(site=instance.site)
     with pelican.get_page_source_path(instance).open("wt") as file:
         write_page(instance, file)
+    if instance.heading:
+        shutil.copy2(instance.heading.path(), pelican.get_page_output_path() / instance.heading.name)
 
 
 def write_post(post, writer: io.TextIOBase): # post: core.Post
     writer.write("Title: "); writer.write(post.title); writer.write("\n")
     writer.write("Date: "); writer.write(str(post.created)); writer.write("\n")
-    if post.draft:
-        writer.write("Status: draft\n")
     writer.write("Modified: "); writer.write(str(post.updated)); writer.write("\n")
     writer.write("Slug: "); writer.write(str(post.slug)); writer.write("\n")
+    # writer.write("Authors: "); writer.write(str(post.author)); writer.write("\n")
+    if post.heading:
+        writer.write("Heading: "), writer.write(post.heading.name); writer.write("\n")
+    if post.draft:
+        writer.write("Status: draft\n")
+    if post.lang:
+        writer.write("Lang: "); writer.write(post.lang); writer.write("\n")
     # writer.write("Tags: "); writer.write(str(post.created)); writer.write("\n")
-    writer.write("Authors: "); writer.write(str(post.author)); writer.write("\n")
     if post.category:
         writer.write("Category: "); writer.write(str(post.category)); writer.write("\n")
     writer.write("Summary: "); writer.write(post.description.replace("\n", "")); writer.write("\n")
@@ -146,4 +157,12 @@ def write_post(post, writer: io.TextIOBase): # post: core.Post
 
 
 def write_page(page, writer: io.TextIOBase):  # page: core.Page
+    writer.write("Title: "); writer.write(page.title); writer.write("\n")
+    writer.write("Date: "); writer.write(str(page.created)); writer.write("\n")
+    writer.write("Modified: "); writer.write(str(page.updated)); writer.write("\n")
+    if page.heading:
+        writer.write("Heading: "), writer.write(page.heading.name); writer.write("\n")
+    if page.lang:
+        writer.write("Lang: "); writer.write(page.lang); writer.write("\n")
+    writer.write("\n")
     writer.write(page.content)

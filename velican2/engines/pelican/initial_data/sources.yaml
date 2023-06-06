@@ -6,8 +6,8 @@
       DARK_LIGHT_SWITCHING_OFF=true
       DISPLAY_HEADER = true
       DISPLAY_FOOTER = true
-      DISPLAY_HOME   = true
-      DISPLAY_MENU   = true
+      DISPLAY_HOME = true
+      DISPLAY_MENU = true
 
 - model: publish.Theme
   pk: 2
@@ -15,3 +15,15 @@
     url: https://github.com/alexandrevicenzi/Flex/archive/refs/heads/v3.zip
     theme_settings: |
       LINKS = conf.MENUITEMS
+
+- model: publish.Theme
+  pk: 3
+  fields:
+    url: https://github.com/gfidente/pelican-svbhack.git
+    theme_settings: |
+      USER_LOGO_URL = conf.SITELOGO
+      TAGLINE = conf.SITEDESCRIPTION
+      USE_GENERIC_FONT_FAMILIES = true # avoid using Google fonts
+    user_settings: |
+      ROUND_USER_LOGO = true
+      HIDE_USER_LOGO = true
