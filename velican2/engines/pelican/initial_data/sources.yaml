@@ -13,17 +13,34 @@
   pk: 2
   fields:
     url: https://github.com/alexandrevicenzi/Flex/archive/refs/heads/v3.zip
+    category: blog
     theme_settings: |
-      LINKS = conf.MENUITEMS
+      LINKS = "conf.MENUITEMS"
 
 - model: publish.Theme
   pk: 3
   fields:
     url: https://github.com/gfidente/pelican-svbhack.git
+    category: blog
     theme_settings: |
-      USER_LOGO_URL = conf.SITELOGO
-      TAGLINE = conf.SITEDESCRIPTION
+      USER_LOGO_URL = "conf.SITELOGO"
+      TAGLINE = "conf.SITEDESCRIPTION"
       USE_GENERIC_FONT_FAMILIES = true # avoid using Google fonts
     user_settings: |
       ROUND_USER_LOGO = true
       HIDE_USER_LOGO = true
+
+- model: publish.Theme
+  pk: 4
+  fields:
+    url: https://github.com/kura/eevee.git
+    category: corp
+    user_settings: |
+      THEME_PRIMARY = "grey"
+      THEME_ACCENT = "white"
+      MEGA_FOOTER = true
+      DISCLAIMER = false # just replace False with text for it to appear (HTML supported)
+      COPYRIGHT = false # just replace False with text for it to appear (HTML supported)
+      USE_AUTHOR_CARD = false # replace with True to show auto-generated author cards along with articles
+
+

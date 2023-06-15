@@ -28,15 +28,27 @@ pelican_themes.err = pelican_themes_err
 def theme_upload_to(instance, filename):
     return f"themes/{instance.name}/{Path(filename).name}"
 
+def toml_validate(value):
+    """Return None if the input is a valid TOML otherwise returns error message."""
+    try:
+        toml.loads(value)
+        return None
+    except toml.TomlDecodeError as e:
+        return str(e)
+
 class Theme(models.Model):
     """Git URL to the theme(s) that will be downloaded and if `not multiple` then installed automatically"""
     name = models.CharField(max_length=32, blank=True, primary_key=True, help_text="Must be set explicitely for cloning a repo under different name")
     url = models.CharField(max_length=256, null=False)
     description = models.TextField(blank=True, null=True)
+    category = models.CharField(max_length=4, blank=False, null=False, default="blog", choices=(
+        ("blog", _("Blog")), ("conf", _("Conference")), ("corp", _("Company"))
+    ))
     image = models.ImageField(blank=True, null=True, upload_to=theme_upload_to, help_text="Screenshot images showcasing the theme")
     image1 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to, help_text="Screenshot images showcasing the theme")
     image2 = models.ImageField(blank=True, null=True, upload_to=theme_upload_to, help_text="Screenshot images showcasing the theme")
     logo_size = models.CharField(max_length=7, null=True, blank=True, help_text="Ideal logo size in pixels; format: WxH (e.g. 350x200)")
+    supports_custom_css = models.BooleanField(default=False)
     heading_size = models.CharField(max_length=9, null=True, blank=True, help_text="Ideal heading size in pixels; format: WxH (e.g. 1280x600)")
     theme_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
     user_settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using toml syntax: KEY = 'value'")
@@ -58,6 +70,17 @@ class Theme(models.Model):
     @property
     def path(self):
         return settings.PELICAN_THEMES / self.name
+
+    def clean(self):
+        errors = {}
+        e = toml_validate(self.theme_settings)
+        if e:
+            errors["theme_settings"] = [ValidationError(e)]
+        e = toml_validate(self.user_settings)
+        if e:
+            errors["user_settings"] = [ValidationError(e)]
+        if errors:
+            raise ValidationError(errors)
 
     def download(self, save=True):
         """Download theme from given URL to settings.PELICAN_THEMES path"""
@@ -370,6 +393,7 @@ class ThemeSettings(models.Model):
     pelican = models.ForeignKey(Settings, on_delete=models.CASCADE)
     theme = models.ForeignKey(Theme, on_delete=models.CASCADE)
     settings = models.TextField(blank=True, null=True, help_text="Define extra variables for the theme (using KEY = 'value' or KEY = conf.EXISTING_KEY)")
+    custom_css = models.TextField(blank=True, null=True, help_text="Inject custom CSS")
 
     class Meta:
         verbose_name = _("Theme Settings")

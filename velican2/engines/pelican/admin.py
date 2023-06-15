@@ -5,7 +5,7 @@ from .models import Theme, Plugin, Settings, ThemeSettings
 
 
 class ThemeAdmin(admin.ModelAdmin):
-    list_display = ("name", "downloaded", "installed", "url")
+    list_display = ("name", "downloaded", "installed", "category", "url")
     readonly_fields = ("updated", "downloaded", "installed", "path", "log")
     actions = ["download", 'install', 'update']
     actions_on_top = True

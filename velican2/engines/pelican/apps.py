@@ -45,9 +45,20 @@ class Engine(AppConfig):
     def render(self, site, post=None, page=None, **kwargs):
         """Produce a HTML output from the database. This might update /index.html and other files."""
         settings = self._get_settings(site)
+        if kwargs.get("force", False) and not (post or page):
+            # regenerate all content
+            for post in site.posts:
+                write_post(settings, post)
+            for page in site.pages:
+                write_page(settings, page)
         if kwargs.get("purge", False):
+            # remove all (stale) output
             shutil.rmtree(settings.get_output_path())
-        logger.debug(f"Site logo name {site.logo.name}")
+        if post is not None:
+            write_post(settings, post)
+        if page is not None:
+            write_page(settings, page)
+        settings.get_output_path().mkdir(exist_ok=True)
         if site.logo:
             logo_output_path = settings.get_output_path() / Path(site.logo.name).name
             if not logo_output_path.exists():
@@ -120,9 +131,14 @@ def on_post_save(instance, **kwargs): # instance: core.Post
     if instance.site.engine != "pelican":
         return
     pelican = Settings.objects.get(site=instance.site)
-    logger.info(f"Writing file {pelican.get_post_source_path(instance)}")
-    with pelican.get_post_source_path(instance).open("wt") as file:
-        write_post(instance, file)
+    write_post(pelican, instance)
+
+def write_post(pelican, post):
+    logger.info(f"Writing post {pelican.get_post_source_path(post)}")
+    with pelican.get_post_source_path(post).open("wt") as file:
+        write_post_content(post, file)
+    if post.heading:
+        shutil.copy2(post.heading.path, pelican.get_post_output_path(post).with_suffix(Path(post.heading.path).suffix))
 
 
 def on_page_save(instance, **kwargs): # instance: core.Page
@@ -130,15 +146,20 @@ def on_page_save(instance, **kwargs): # instance: core.Page
     if instance.site.engine != "pelican":
         return
     pelican = Settings.objects.get(site=instance.site)
-    with pelican.get_page_source_path(instance).open("wt") as file:
-        write_page(instance, file)
-    if instance.heading:
-        shutil.copy2(instance.heading.path(), pelican.get_page_output_path() / instance.heading.name)
+    write_page(pelican, instance)
+
+def write_page(pelican, page):
+    logger.info(f"Writing page {pelican.get_page_source_path(page)}")
+    with pelican.get_page_source_path(page).open("wt") as file:
+        write_page_content(page, file)
+    if page.heading:
+        shutil.copy2(page.heading.path, pelican.get_page_output_path(page).with_suffix(Path(page.heading.path).suffix))
 
 
-def write_post(post, writer: io.TextIOBase): # post: core.Post
+def write_post_content(post, writer: io.TextIOBase): # post: core.Post
     writer.write("Title: "); writer.write(post.title); writer.write("\n")
     writer.write("Date: "); writer.write(str(post.created)); writer.write("\n")
+    writer.write("Author: "); writer.write(str(post.author)); writer.write("\n")
     writer.write("Modified: "); writer.write(str(post.updated)); writer.write("\n")
     writer.write("Slug: "); writer.write(str(post.slug)); writer.write("\n")
     # writer.write("Authors: "); writer.write(str(post.author)); writer.write("\n")
@@ -156,7 +177,7 @@ def write_post(post, writer: io.TextIOBase): # post: core.Post
     writer.write(post.content)
 
 
-def write_page(page, writer: io.TextIOBase):  # page: core.Page
+def write_page_content(page, writer: io.TextIOBase):  # page: core.Page
     writer.write("Title: "); writer.write(page.title); writer.write("\n")
     writer.write("Date: "); writer.write(str(page.created)); writer.write("\n")
     writer.write("Modified: "); writer.write(str(page.updated)); writer.write("\n")

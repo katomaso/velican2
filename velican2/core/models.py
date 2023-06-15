@@ -78,6 +78,14 @@ class Site(models.Model):
 
     __str__ = lambda self: self.domain + self.path
 
+    @property
+    def posts(self):
+        return Post.objects.all().filter(site=self)
+
+    @property
+    def pages(self):
+        return Page.objects.all().filter(site=self)
+
     def get_engine(self):
         return engines.get_engine(self.engine)
 
