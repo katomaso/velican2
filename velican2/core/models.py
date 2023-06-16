@@ -226,6 +226,7 @@ class Post(Content):
     author = models.ForeignKey(auth.User, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)
     description = models.TextField()
     punchline = models.TextField(blank=True, help_text="Punchline for social media. Defaults to description.")
+    broadcast = models.BooleanField(default=True, help_text="If the post should be published on all linked social media")
 
     class Meta:
         verbose_name = _("Post")
@@ -297,3 +298,17 @@ class Publish(models.Model):
             threading.Thread(target=self.run, daemon=True).start()
         return super().save(**kwargs)
 
+
+class Mention(models.Model):
+    """Metions on other articles/videos that the author wants to prevail for themself."""
+    site = models.ForeignKey(Site, db_index=True, on_delete=models.CASCADE)
+    url = models.CharField(max_length=256)
+    comment = models.TextField(blank=True, null=True, help_text="Feel free to use markdown")
+    rating = models.PositiveSmallIntegerField(help_text="Rating from 1 to 5 where 5 is maximum", choices=((0, "0"), (1, "1"), (2, "2"), (3, "3"), (4, "4"), (5, "5")))
+    tag = models.ForeignKey(Category, blank=True, null=True, on_delete=models.DO_NOTHING)
+
+    __str__ = lambda self: f"{self.site} -> {self.url}"
+
+    class Meta:
+        verbose_name = _("Mention")
+        verbose_name_plural = _("Mentions")
