@@ -52,20 +52,26 @@ class Site(models.Model):
     allow_crawlers = models.BooleanField(default=True, help_text="Allow search engines to index this page")
     allow_training = models.BooleanField(default=True, help_text="Allow AI engines to index this page")
 
-    engine = models.CharField(max_length=12, null=False,
-        choices=ENGINE_CHOICES, default=engines.engines[0])
-
+    engine = models.CharField(max_length=12, null=False, choices=ENGINE_CHOICES, default=engines.engines[0])
     deployment = models.CharField(max_length=12, null=False,
         choices=(
             ("aws", "AWS CloudFront"),
             ("caddy", "local Caddy server")
-        ))
+        )
+    )
 
-    webmentions = models.BooleanField(default=False, help_text="Should it use builtin webmentions service")
-    webmentions_external = models.CharField(max_length=256, blank=True, null=True, help_text="URL of an external webmentions service")
+    publish_to_facebook = models.BooleanField(default=False)
+    publish_to_instagram = models.BooleanField(default=False)
+    publish_to_twitter = models.BooleanField(default=False)
+    publish_to_linkedin = models.BooleanField(default=False)
+    publish_to_fediverse = models.BooleanField(default=False)
+    fediverse_url = models.CharField(max_length=128, null=True, blank=True, help_text="Your profile URL")
 
-    matomo = models.BooleanField(default=False, help_text="Should it use builtin tracking service")
-    matomo_external = models.CharField(max_length=256, null=True, blank=True, help_text="URL of an external tracking service")
+    webmentions = models.BooleanField(default=False, help_text="Should your site use webmentions")
+    webmentions_external = models.CharField(max_length=256, blank=True, null=True, help_text="URL of an external webmentions service (optional). Leave empty for the builtin service.")
+
+    matomo = models.BooleanField(default=False, help_text="Should your site use usage-tracking service")
+    matomo_external = models.CharField(max_length=256, null=True, blank=True, help_text="URL of an usage-tracking service")
     matomo_external_id = models.CharField(max_length=64, null=True, blank=True, help_text="SITE_ID for the external tracking service")
 
     # google_adsense = 
@@ -174,6 +180,8 @@ class Content(models.Model):
     created = models.DateTimeField()
     updated = models.DateTimeField()
     heading = models.ImageField(blank=True, null=True, upload_to=content_heading_upload)
+    updated_count = models.IntegerField(default=0, blank=True, help_text="How many times was the content updated")
+    updated_words = models.IntegerField(default=0, blank=True, help_text="How many words were changed during its lifespan")
 
     __str__ = lambda self: self.title
 
@@ -193,11 +201,15 @@ class Content(models.Model):
         return self.site.can_add_content(user)
 
     def save(self, user=None, **kwargs):
-        if not self.id:
-            self.created = datetime.now()
         if user and not self.can_edit(user):
             raise PermissionError("You don't have edit rights on this")
-        self.updated = datetime.now()
+        now = datetime.now()
+        self.updated = now
+        if not self.id:
+            self.created = now
+            self.updated_words = self.content.count(" ")
+        else:
+            self.updated_count += 1
         super().save(**kwargs)
 
 
@@ -304,7 +316,7 @@ class Mention(models.Model):
     site = models.ForeignKey(Site, db_index=True, on_delete=models.CASCADE)
     url = models.CharField(max_length=256)
     comment = models.TextField(blank=True, null=True, help_text="Feel free to use markdown")
-    rating = models.PositiveSmallIntegerField(help_text="Rating from 1 to 5 where 5 is maximum", choices=((0, "0"), (1, "1"), (2, "2"), (3, "3"), (4, "4"), (5, "5")))
+    rating = models.SmallIntegerField(help_text="Rating where -2 is completely disagree through neutral 0 to like at +2", choices=((-2, "-2"), (-1, "-1"), (0, "0"), (1, "1"), (2, "2")))
     tag = models.ForeignKey(Category, blank=True, null=True, on_delete=models.DO_NOTHING)
 
     __str__ = lambda self: f"{self.site} -> {self.url}"

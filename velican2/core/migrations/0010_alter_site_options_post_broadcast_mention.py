@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('url', models.CharField(max_length=256)),
                 ('comment', models.TextField(blank=True, help_text='Feel free to use markdown', null=True)),
-                ('rating', models.PositiveSmallIntegerField(choices=[(0, '0'), (1, '1'), (2, '2'), (3, '3'), (4, '4'), (5, '5')], help_text='Rating from 1 to 5 where 5 is maximum')),
+                ('rating', models.SmallIntegerField(choices=((-2, "-2"), (-1, "-1"), (0, "0"), (1, "1"), (2, "2")), help_text="Rating where -2 is completely disagree through neutral 0 to like at +2")),
                 ('site', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='core.site')),
                 ('tag', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='core.category')),
             ],
