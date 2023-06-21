@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-DEBUG = os.getenv("VELICAN_DEBUG", "True").lower() in ("1", "true", "yes")
+DEBUG = os.getenv("VELICAN_DEBUG", "False").lower() in ("1", "true", "yes")
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
