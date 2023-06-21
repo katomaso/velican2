@@ -16,8 +16,6 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
-    from django.conf import settings
-    settings.SUBCOMMAND = sys.argv[1] if len(sys.argv) > 1 else "help"
     execute_from_command_line(sys.argv)
 
 

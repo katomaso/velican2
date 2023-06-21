@@ -2,13 +2,9 @@ import io
 import pelican
 import shutil
 
-from datetime import datetime
 from django.apps import apps, AppConfig
-from django.conf import settings
-from django.db.models.signals import post_save, pre_delete
-from django.dispatch import receiver
+from django.db.models.signals import post_save
 from pathlib import Path
-from pelican.tools import pelican_themes
 
 from velican2.engines.pelican import logger
 
@@ -18,19 +14,6 @@ class Engine(AppConfig):
     name = 'velican2.engines.pelican'
 
     def ready(self):
-        # prefill Themes tables with builtin themes (into Pelican)
-        if "migrat" not in settings.SUBCOMMAND:
-            Theme = self.get_model("Theme")
-            for (theme, _) in pelican_themes.themes():
-                logger.info(f"Found {theme} with pelican_themes - installing")
-                Theme.objects.get_or_create(name=Path(theme).parts[-1], defaults={
-                    "updated": datetime.now(),
-                })
-            Plugin = self.get_model("Plugin")
-            for plugin in pelican.load_plugins(settings.PELICAN_DEFAULT_SETTINGS):
-                logger.info(f"Found {plugin} with pelican.load_plugins() - installing")
-                Plugin.objects.get_or_create(id=pelican.get_plugin_name(plugin))
-
         post_save.connect(on_site_save, sender=apps.get_model("core", "Site"))
         post_save.connect(on_post_save, sender=apps.get_model("core", "Post"))
         post_save.connect(on_page_save, sender=apps.get_model("core", "Page"))
