@@ -3,6 +3,7 @@ from pathlib import Path
 
 DEBUG = os.getenv("VELICAN_DEBUG", "False").lower() in ("1", "true", "yes")
 
+ROOT_URLCONF = 'velican2.urls'
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 HTML_SOURCE = Path(os.getenv("HTML_SOURCE", ROOT_DIR / "runtime/source"))

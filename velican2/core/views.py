@@ -5,10 +5,13 @@ from pathlib import Path
 
 from . import models
 
-def as_bool(value: str):
-    return value.lower() in ("1", "true", "yes")
+def index(request: http.HttpRequest):
+    return render(request, "index.html")
 
 def publish(request: http.HttpRequest, site: str):
+    def as_bool(value: str):
+        return value.lower() in ("1", "true", "yes")
+
     get_object_or_404(models.Site, domain=site).publish(
         request.user,
         force=as_bool(request.GET.get("force", "False")),
