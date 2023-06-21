@@ -57,8 +57,13 @@ class Theme(models.Model):
 
     __str__ = lambda self: self.name
 
+    # Path where all themes are downlodaed (hence it is a class property).
+    root_path = settings.APP_DIR / "pelican" / "theme"
+
     @property
     def downloaded(self):
+        if not self.name:
+            return False
         return self.path.exists()
 
     @property
@@ -69,7 +74,7 @@ class Theme(models.Model):
 
     @property
     def path(self):
-        return settings.PELICAN_THEMES / self.name
+         return Theme.root_path / self.name
 
     def clean(self):
         errors = {}
@@ -84,6 +89,8 @@ class Theme(models.Model):
 
     def download(self, save=True):
         """Download theme from given URL to settings.PELICAN_THEMES path"""
+        if not self.downloaded:
+            Theme.root_path.mkdir(exist_ok=True)
         if self.url.endswith(".zip"):
             zip_path = self.path.with_suffix(".zip")
             urllib.request.urlretrieve(self.url, zip_path)
@@ -92,7 +99,7 @@ class Theme(models.Model):
             if l[1].filename.strip("/").count("/") > 0:
                 self.name = l[0].filename.strip("/")
                 logger.debug("Only one folder found in the zipfile: " + self.name)
-                z.extractall(settings.PELICAN_THEMES)
+                z.extractall(Theme.path)
             else:
                 logger.debug("Archive contains multiple files - extracting to: " + self.path)
                 z.extractall(self.path)
@@ -109,7 +116,7 @@ class Theme(models.Model):
             else:
                 proc = subprocess.Popen( # download
                     ["git", "clone", "--recurse-submodules", self.url, self.name],
-                    cwd=settings.PELICAN_THEMES, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+                    cwd=self.path, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
             if proc.wait() == 0:
                 self.log = None
             else:
@@ -262,7 +269,7 @@ class Settings(models.Model):
         self._settings.update(pelican.settings.DEFAULT_CONFIG)
         self._settings.update(settings.PELICAN_DEFAULT_SETTINGS)
         self._settings.update({
-            'PATH': str(settings.PELICAN_CONTENT / self.site.domain / self.site.path),
+            'PATH': str(settings.HTML_SOURCE / self.site.domain / self.site.path),
             'ARTICLE_URL': (self.post_url_template if not self.post_url_template.endswith("index.html") else self.post_url_template[:-10]).lstrip("/"),
             'ARTICLE_SAVE_AS': self.post_url_template,
             'PAGE_URL': self.page_url_template,
@@ -273,7 +280,7 @@ class Settings(models.Model):
             'CATEGORY_SAVE_AS': self.category_url_template,
             'AUTHOR_URL': self.author_url_template,
             'AUTHOR_SAVE_AS': self.author_url_template,
-            'OUTPUT_PATH': str(settings.PELICAN_OUTPUT / self.site.domain / self.site.path),
+            'OUTPUT_PATH': str(settings.HTML_OUTPUT / self.site.domain / self.site.path),
             'THEME': str(Path(pelican_themes._THEMES_PATH, self.theme.name)),
             # Why the heck the dafault PAGINATION_PATTERNS are broken?!
             'PAGINATION_PATTERNS': [pelican.paginator.PaginationRule(*x) for x in pelican.settings.DEFAULT_CONFIG['PAGINATION_PATTERNS']],

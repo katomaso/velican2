@@ -5,9 +5,10 @@ DEBUG = os.getenv("VELICAN_DEBUG", "True").lower() in ("1", "true", "yes")
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
-PELICAN_THEMES = Path(os.getenv("PELICAN_CONTENT", ROOT_DIR / "runtime/themes/"))
-PELICAN_CONTENT = Path(os.getenv("PELICAN_CONTENT", ROOT_DIR / "runtime/pelican/"))
-PELICAN_OUTPUT = Path(os.getenv("PELICAN_OUTPUT", ROOT_DIR / "runtime/www/"))
+HTML_SOURCE = Path(os.getenv("HTML_SOURCE", ROOT_DIR / "runtime/source"))
+HTML_OUTPUT = Path(os.getenv("HTML_OUTPUT", ROOT_DIR / "runtime/www"))
+APP_DIR = Path(os.getenv("APP_DIR", os.getcwd()))
+
 PELICAN_DEFAULT_SETTINGS = {
     'PAGE_PATHS': ["pages", ],
     'ARTICLE_PATHS': ["content", ],

@@ -18,9 +18,6 @@ class Engine(AppConfig):
     name = 'velican2.engines.pelican'
 
     def ready(self):
-        if not settings.PELICAN_THEMES.is_dir():
-            settings.PELICAN_THEMES.mkdir(exist_ok=True)
-
         # prefill Themes tables with builtin themes (into Pelican)
         if "migrat" not in settings.SUBCOMMAND:
             Theme = self.get_model("Theme")

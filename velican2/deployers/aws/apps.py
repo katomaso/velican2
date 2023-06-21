@@ -13,7 +13,7 @@ class AWS(AppConfig, IDeployer):
 
     def ready(self):
         if not settings.AWS_KEY:
-            raise RuntimeError("No AWS credentials set via AWS_KEY and AWS_SECRET")
+            logger.error("No AWS credentials set via AWS_KEY and AWS_SECRET")
         self.s3 = boto3.resource('s3',
             aws_access_key_id=settings.AWS_KEY,
             aws_secret_access_key=settings.AWS_SECRET,
