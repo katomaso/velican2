@@ -116,7 +116,7 @@ class Theme(models.Model):
             else:
                 proc = subprocess.Popen( # download
                     ["git", "clone", "--recurse-submodules", self.url, self.name],
-                    cwd=self.path, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
+                    cwd=self.root_path, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True)
             if proc.wait() == 0:
                 self.log = None
             else:

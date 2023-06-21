@@ -1,4 +1,4 @@
-- model: publish.Theme
+- model: pelican.Theme
   pk: 1
   fields:
     url: https://github.com/tcarwash/blue-penguin-dark.git
@@ -9,7 +9,7 @@
       DISPLAY_HOME = true
       DISPLAY_MENU = true
 
-- model: publish.Theme
+- model: pelican.Theme
   pk: 2
   fields:
     url: https://github.com/alexandrevicenzi/Flex/archive/refs/heads/v3.zip
@@ -17,7 +17,7 @@
     theme_settings: |
       LINKS = "conf.MENUITEMS"
 
-- model: publish.Theme
+- model: pelican.Theme
   pk: 3
   fields:
     url: https://github.com/gfidente/pelican-svbhack.git
@@ -30,7 +30,7 @@
       ROUND_USER_LOGO = true
       HIDE_USER_LOGO = true
 
-- model: publish.Theme
+- model: pelican.Theme
   pk: 4
   fields:
     url: https://github.com/kura/eevee.git

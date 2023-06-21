@@ -6,4 +6,5 @@ markdown
 pelican
 Pillow
 boto3
+pyYAML
 toml
