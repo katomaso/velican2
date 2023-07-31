@@ -25,6 +25,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites',
 
+    # put velican before other apps to have template resolution priority
+    'velican2.core',
+    'velican2.payment',
+    'velican2.engines.pelican',
+    'velican2.deployers.aws',
+    'velican2.deployers.caddy',
+
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
@@ -33,10 +40,8 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.twitter_oauth2',
     'allauth.socialaccount.providers.linkedin_oauth2',
 
-    'velican2.core',
-    'velican2.engines.pelican',
-    'velican2.deployers.aws',
-    'velican2.deployers.caddy',
+    'markdownx',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
@@ -60,6 +65,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'velican2.core.context_processors.user_has_site',
             ],
         },
     },
@@ -77,7 +83,10 @@ DATABASES = {
     }
 }
 
+ROOT_URLCONF = 'velican2.urls'
+
 MEDIA_ROOT = BASE_DIR / 'runtime' / 'media'
+STATIC_ROOT = BASE_DIR / 'runtime' / 'static'
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators
@@ -104,5 +113,9 @@ MEDIA_URL = 'media/'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+MARKDOWNX_MARKDOWN_EXTENSIONS = [
+    'markdown.extensions.extra',
+]
 
 from .local_settings import *

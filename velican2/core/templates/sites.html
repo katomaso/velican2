@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block "css" %}
+.markdownx {
+    display: flex;
+    flex-wrap: wrap;
+}
+{% endblock %}
+
+{% block "main" %}
+<h1>Vaše domény</h1>
+<ul>
+{% for site in object_list %}
+    <li><a href="{% url 'core:site' site=site.domain %}">{{site}}</a></li>
+{% endfor %}
+</ul>
+{% endblock %}

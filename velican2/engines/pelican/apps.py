@@ -113,6 +113,7 @@ def on_post_save(instance, **kwargs): # instance: core.Post
     pelican = Settings.objects.get(site=instance.site)
     write_post(pelican, instance)
 
+
 def write_post(pelican, post):
     logger.info(f"Writing post {pelican.get_post_source_path(post)}")
     with pelican.get_post_source_path(post).open("wt") as file:
@@ -127,6 +128,7 @@ def on_page_save(instance, **kwargs): # instance: core.Page
         return
     pelican = Settings.objects.get(site=instance.site)
     write_page(pelican, instance)
+
 
 def write_page(pelican, page):
     logger.info(f"Writing page {pelican.get_page_source_path(page)}")

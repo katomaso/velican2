@@ -1,13 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="cs-CZ">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potli</title>
-    <style>{% block "style" %}{% endblock %}</style>
+    <link rel="stylesheet" href="/static/tailwind.css">
+    <title>{% block head_title %}MicroB{% endblock %}</title>
+    {%block "css"%}<style></style>{%endblock%}
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
-    {% block "content" %}{% endblock %}
+    <nav>{% block "nav" %}
+        {% if user.is_authenticated %}
+            {% if user_has_site %}
+        <a href="{% url 'core:sites' %}">Moje stránky</a>
+            {% else %}
+        <a href="{% url 'core:start' %}">Start</a>
+            {% endif %}
+        {% else %}
+        <a href="{% url 'account_login' %}">Přihlásit se</a>
+        {% endif %}
+    {% endblock %}</nav>
+    <main>
+        {% if messages %}
+        <div class="absolute top-10 z-10">
+        <ul>
+            {% for message in messages %}
+            <li class="mb-3 list-none {% if message.level.info %}bg-blue-300{% else %}bg-red-300{%endif%}">{{message}}</li>
+            {% endfor %}
+        </ul>
+        </div>
+        {% endif %}
+
+        {% block "main" %}
+        <div class="content">{% block "content" %}{% endblock %}</div>
+        {% endblock %}
+    </main>
+    {% block extra_body %}
+    {% endblock %}
 </body>
 </html>

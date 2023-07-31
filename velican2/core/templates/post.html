@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block "css" %}
+<style>
+    .markdownx {
+        display: flex;
+        flex-wrap: wrap;
+    }
+</style>
+{% endblock %}
+
+{% block "main" %}
+<form role="form" method="POST" action="">{% csrf_token %}
+    <section class="container">
+        <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
+        <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}}<br>
+        <label for="{{form.description.id_for_label}}">Shrnutí</label>{{form.description}}<br>
+    </section>
+    <section>
+        {{form.content}}
+    </section>
+    {{form.punchline}}
+</form>
+{{ form.media }}
+{% endblock %}

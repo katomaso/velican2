@@ -1,0 +1,27 @@
+{
+  "name": "velican2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build-css": "tailwindcss -i tailwind.css -o ./velican2/core/static/tailwind.css -m",
+    "watch-css": "tailwindcss -i tailwind.css -o ./velican2/core/static/tailwind.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/katomaso/velican2.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/katomaso/velican2/issues"
+  },
+  "homepage": "https://github.com/katomaso/velican2#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.3.2"
+  },
+  "dependencies": {
+    "tw-elements": "^1.0.0-beta2"
+  }
+}

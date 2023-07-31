@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block "css" %}
+.markdownx {
+    display: flex;
+    flex-wrap: wrap;
+}
+{% endblock %}
+
+{% block "main" %}
+<h1>Doména {{object.domain}}</h1>
+
+Počet příspěvků: {{posts_num}}<br>
+Počet odkazů: <br>
+
+<a href="{% url 'core:add_post' object.domain %}">Přidat příspěvěk</a>
+
+{% endblock %}

@@ -1,13 +1,63 @@
 {% extends "base.html" %}
 
-{% block "content" %}
-<h1>Hodnota roste s časem</h1>
-<p>
-    Budování hodnoty je pomalý proces protože hodnota roste časem a zkušeností. Shrnutí takové
-    zkušenosti pak má cenu zlata. Ať už pak sepíšete článek, nahrajete audio nebo video, tak je
-    potřeba je publikovat a zpřístupnit tak pro ostatní. Na sociálních sítí by rychle zapadl,
-    protože ty jsou určené pro krátké a časté příspěvky. Federovaný blog je váš vlastní prostor,
-    který má přesah na všechny mainstreamové sociální sítě a do fediversa a přesto zachovává 
-    váš obsah opravdu váš.
-</p>
+{% block "css" %}
+ul li {
+    font-size: 16pt;
+    margin-bottom: 0.33rem;
+}
+ul li:before
+{
+    content: "🗸";
+    margin: 0 1em 0 0;
+    font-size: 18pt;
+}
+{% endblock %}
+
+{% block "main" %}
+<div class="content">
+    <h1>MicroB je váš prostor</h1>
+    <ul>
+        <li>Vlastní stránky hned a jednodušše - i na vlastní doméně</li>
+        <li>Optimalizováno pro časté přidávání článků a informací</li>
+        <li>Dosáhnete dál - publikujte jednou a buďte na všech sítích</li>
+        <li>Bezpečné, efektivní, levné a bez starostí</li>
+        <li>Hostováno v Čechách nebo na celosvětové CDN</li>
+    </ul><br>
+
+    <a href="{% url 'core:start' %}" class="primary ml-10">Začít</a>
+    <em class="text-sm">(blabl)</em>
+
+    <video src="/static/microb-predstaveni.mp4" type="video/mp4"></video>
+
+    <section>
+        <h2>Vstupte do fediversa</h2>
+        <p>
+            Zpřístupní vaše stránky ve prostoru sdílených sociálnách sítích. Už nebude potřebovat
+            duplikovat váš obsah na facebooku, twitteru, mastodontu a jiných budoucích sítí.
+            Rozhýbeme vaše stránky tak, že se stanou součástí sociálního prostoru internetu.
+        </p>
+    </section>
+
+    <section>
+        <h2>Sociální sítě - umíme všechny</h2>
+        <p>
+            Budování hodnoty je pomalý proces protože hodnota roste časem a zkušeností. Shrnutí takové
+            zkušenosti pak má cenu zlata. Ať už pak sepíšete článek, nahrajete audio nebo video, tak je
+            potřeba je publikovat a zpřístupnit tak pro ostatní. Na sociálních sítí by rychle zapadl,
+            protože ty jsou určené pro krátké a časté příspěvky. Navíc příspěvky jsou prokládány reklamou
+            a řazeny algoritmy.
+        </p>
+    </section>
+
+    <section>
+        <h2>Publikujte jednou - buďte všude</h2>
+        <p>
+            Federovaný profil je váš vlastní prostor, který je součástí fediversa - celosvětové sociální sítě.
+            Má ovšem přesah i na všechny mainstreamové soukromé sociální sítě jako facebook, twitter a instagram.
+            Díky chytré integraci budete vidět všude a udržíte si spojení se svými zákazníky, ať už se pohybují
+            většinou na sítích nebo na starém dobrém internetu.
+        </p>
+    </section>
+
+</div>
 {% endblock %}

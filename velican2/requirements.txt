@@ -2,6 +2,7 @@ psycopg2
 django
 django-allauth
 django-admin-tools
+django-markdownx
 markdown
 pelican
 Pillow

@@ -3,6 +3,7 @@ import threading
 from pathlib import Path
 
 from datetime import datetime, timedelta
+from typing import Any, Dict, Tuple
 
 from django.db import models
 from django.conf import settings
@@ -44,8 +45,8 @@ class Site(models.Model):
     timezone = models.CharField(max_length=128, default="Europe/Prague")
     secure = models.BooleanField(default=True, help_text="The site is served via secured connection https")
 
-    title = models.CharField(max_length=128, null=True)
-    subtitle = models.CharField(max_length=128, null=True)
+    title = models.CharField(max_length=128)
+    subtitle = models.TextField(null=True)
     logo = models.ImageField(blank=True, null=True, upload_to=site_logo_upload)
     heading = models.ImageField(blank=True, null=True, upload_to=site_heading_upload)
 
@@ -261,7 +262,27 @@ class Post(Content):
         return self.site.get_engine().get_post_url(self.site, self, absolute=absolute)
 
 
+def content_image_upload(self, filename):
+    return Path(settings.MEDIA_ROOT / self.site.domain / (self.post.slug if self.post else self.slug) / (filename if not self.name else filename.with_stem(self.name)))
+
+class Image(models.Model):
+    """Images uploaded for the site. They will be sotred in MEDIA folder and most likely simply linked to the output directory."""
+    site = models.ForeignKey(Site, on_delete=models.CASCADE)
+    post = models.ForeignKey(Post, null=True, on_delete=models.SET_NULL)
+    slug = models.CharField(max_length=64, help_text="Slug of matching content - must not change during lifetime")
+    name = models.CharField(max_length=32, null=True)
+    image = models.ImageField(upload_to=content_image_upload)
+
+    __str__ = lambda self: self.image.name
+
+    def delete(self, **kwargs) -> Tuple[int, Dict[str, int]]:
+        self.image.delete()
+        Path(self.image.path).unlink()
+        return super().delete(**kwargs)
+
+
 class Publish(models.Model):
+    """Publish task that will start engine's rendering and deploiyer's deploy functions."""
     site = models.ForeignKey(Site, db_index=True, on_delete=models.CASCADE)
     post = models.ForeignKey(Post, null=True, blank=True, db_index=False, on_delete=models.CASCADE)
     force = models.BooleanField(default=False, help_text="Upload all files no matter their modification time")

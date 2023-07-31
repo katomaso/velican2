@@ -22,10 +22,11 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('allauth.urls')),
     path('pelican/', include('velican2.engines.pelican.urls')),
-    path('', include('velican2.core.urls')),
+    path('', include('velican2.core.urls', namespace="core")),
+    path('markdownx/', include('markdownx.urls')),
 ]
 
 if settings.DEBUG :
-    urlpatterns.append(
+    urlpatterns.insert(0,
         re_path(r'^media/(?P<path>.*)$', serve_static, {'document_root': settings.MEDIA_ROOT}),
     )
