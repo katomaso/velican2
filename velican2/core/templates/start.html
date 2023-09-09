@@ -11,7 +11,7 @@
 </style>
 {% endblock %}
 
-{% block "main" %}
+{% block "content" %}
 <form method="POST" autocomplete="off">
     {% if form.non_field_errors %}
     <ul class="bg-red-50 text-red-700 font-medium">
@@ -31,10 +31,11 @@
         <br>
         <em class="text-sm"> -- nebo -- </em>
         <br>
-        <label for="own_domain">Mám doménu</label><input type="text" name="own_domain" placeholder="mojedomena.cz" value="{{form.own_domain.value|default_if_none:''}}">
+        <label for="own_domain">Mám doménu</label><input type="text" name="own_domain" placeholder="mojedomena.cz" value="{{form.own_domain.value|default_if_none:''}}" onfocus="document.getElementById('domainhint').classList.remove('hidden')">
         {% for error in form.own_domain.errors %}
          <div class="bg-red-50 text-red-700 font-medium">{{ error|escape }}</div>
         {% endfor %}
+        <em id="domainhint" class="hidden block">V dalších krocích budete požádáni, abyste nastavil konkrétní CNAME záznam ve svém DNS.</em>
     </section>
 
     <div class="border-b-2 my-8"></div>

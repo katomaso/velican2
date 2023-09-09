@@ -6,11 +6,22 @@ from .. import IDeployer
 from django.apps import apps, AppConfig
 from django.conf import settings
 from django.db.models.signals import post_save
-
+from requests.exceptions import ConnectionError
 
 class CaddyConfig(AppConfig, IDeployer):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'velican2.deployers.caddy'
+
+    def is_available(self):
+        try:
+            requests.get(settings.CADDY_URL + "/config/")
+            return True
+        except ConnectionError:
+            logger.error("Caddy unavailable at " + settings.CADDY_URL)
+            return False
+
+    def ready(self) -> None:
+        self.is_available()
 
     def deploy(self, site, post=None, page=None, **kwargs):
         # make sure there is a caddy server with velican server config
@@ -36,5 +47,5 @@ class CaddyConfig(AppConfig, IDeployer):
 
     def delete(self, site, post=None, page=None, **kwargs):
         # just make sure that caddy points to the renderer's output
-        logger.info("Caddy deploy is a noop")
+        logger.info("Caddy delete is a noop")
 

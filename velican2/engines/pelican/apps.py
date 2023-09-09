@@ -4,6 +4,7 @@ import shutil
 
 from django.apps import apps, AppConfig
 from django.db.models.signals import post_save
+from django.urls import reverse
 from pathlib import Path
 
 from velican2.engines.pelican import logger
@@ -19,8 +20,13 @@ class Engine(AppConfig):
         post_save.connect(on_page_save, sender=apps.get_model("core", "Page"))
 
     def _get_settings(self, site):
-        Settings = self.get_model("Settings")
-        return Settings.objects.get(site=site)
+        try:
+            Settings = self.get_model("Settings")
+            return Settings.objects.get(site=site)
+        except Settings.DoesNotExist:
+            object = Settings(site=site)
+            object.save()
+            return object
 
     def render(self, site, post=None, page=None, **kwargs):
         """Produce a HTML output from the database. This might update /index.html and other files."""
@@ -76,6 +82,10 @@ class Engine(AppConfig):
         settings = self._get_settings(site)
         return settings.get_post_output_path(post)
 
+    def get_settings_url(self, site) -> str:
+        settings = self._get_settings(site)
+        return reverse("pelican:setting", kwargs={'id':settings.id})
+
     def get_page_url(self, site, page, absolute=True):
         settings = self._get_settings(site)
         url = settings.get_page_url(page)
@@ -99,7 +109,6 @@ def on_site_save(instance, **kwargs): # instance: core.Site
         site=instance,
         defaults=dict(
             theme=Theme.objects.all().first(),
-            post_url_template=Settings.POST_URL_TEMPLATES[0][1],
         )
     )
     if created:

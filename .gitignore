@@ -5,6 +5,14 @@
 /cache
 /apps
 /media
+/node_modules
+/credentials
 
 **/__pycache__
 **/*.pyc
+
+/.vscode
+/.env
+/*.ps1
+/*.exe
+/*.pem

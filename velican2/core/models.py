@@ -12,6 +12,7 @@ from django.contrib.auth import models as auth
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_unicode_slug, RegexValidator
 from django.utils.translation import gettext as _
+from django.utils.text import slugify
 
 from velican2 import engines
 from velican2 import deployers
@@ -23,26 +24,27 @@ class UpdateException(Exception):
     pass
 
 LANG_CHOICES = (
-    ("cs_CZ", "cs"),
-    ("en_US", "en"),
+    ("cs-cz", "cs"),
+    ("en-us", "en"),
 )
 
 
 def site_logo_upload(site, filename):
-    return Path(settings.MEDIA_ROOT / site.domain / site.path.strip("/") / filename).with_stem("logo")
+    return Path(settings.MEDIA_ROOT / site.urn / filename).with_stem("logo")
 
 def site_heading_upload(site, filename):
-    return Path(settings.MEDIA_ROOT / site.domain / site.path.strip("/") / filename).with_stem("heading")
+    return Path(settings.MEDIA_ROOT / site.urn / filename).with_stem("heading")
 
 ENGINE_CHOICES = tuple((engine, engine.title()) for engine in engines.engines)
 
 class Site(models.Model):
-    domain = models.CharField(max_length=32, db_index=True, help_text="Example: example.com", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+\.?)+$'), ))
-    path = models.CharField(max_length=32, default="", blank=True, help_text="Fill only if your site is under a path (e.g. \"/blog\")", validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-]+/?)*$'), ))
+    urn = models.CharField(max_length=128, db_index=True, help_text="Example: example.com/blog", unique=True,
+                           validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-][a-zA-Z0-9_/\-]+\.?)+$'),
+                                       RegexValidator(regex=r'[^\./]$', message=_("URN must not end with dot or slash"))))
     admin = models.ForeignKey(auth.User, on_delete=models.CASCADE, related_name="+")
     staff = models.ManyToManyField(auth.User)
-    lang = models.CharField(max_length=48, choices=LANG_CHOICES)
-    timezone = models.CharField(max_length=128, default="Europe/Prague")
+    lang = models.CharField(max_length=48, choices=LANG_CHOICES, default=settings.LANGUAGE_CODE)
+    timezone = models.CharField(max_length=128, default=settings.TIME_ZONE)
     secure = models.BooleanField(default=True, help_text="The site is served via secured connection https")
 
     title = models.CharField(max_length=128)
@@ -61,18 +63,24 @@ class Site(models.Model):
         )
     )
 
+    facebook = models.CharField(max_length=128, null=True, blank=True)
+    twitter = models.CharField(max_length=128, null=True, blank=True)
+    linkedin = models.CharField(max_length=128, null=True, blank=True)
+    github = models.CharField(max_length=128, null=True, blank=True)
+    instagram = models.CharField(max_length=128, null=True, blank=True)
+    fediverse = models.CharField(max_length=128, null=True, blank=True)
+
     publish_to_facebook = models.BooleanField(default=False)
     publish_to_instagram = models.BooleanField(default=False)
     publish_to_twitter = models.BooleanField(default=False)
     publish_to_linkedin = models.BooleanField(default=False)
     publish_to_fediverse = models.BooleanField(default=False)
-    fediverse_url = models.CharField(max_length=128, null=True, blank=True, help_text="Your profile URL")
 
     webmentions = models.BooleanField(default=False, help_text="Should your site use webmentions")
     webmentions_external = models.CharField(max_length=256, blank=True, null=True, help_text="URL of an external webmentions service (optional). Leave empty for the builtin service.")
 
     matomo = models.BooleanField(default=False, help_text="Should your site use usage-tracking service")
-    matomo_external = models.CharField(max_length=256, null=True, blank=True, help_text="URL of an usage-tracking service")
+    matomo_external = models.CharField(max_length=256, null=True, blank=True, help_text=_("URL of an usage-tracking service"))
     matomo_external_id = models.CharField(max_length=64, null=True, blank=True, help_text="SITE_ID for the external tracking service")
 
     # google_adsense = 
@@ -81,9 +89,8 @@ class Site(models.Model):
     class Meta:
         verbose_name = _("Site")
         verbose_name_plural = _("Sites")
-        unique_together = [['domain', 'path']]
 
-    __str__ = lambda self: self.domain + self.path
+    __str__ = lambda self: self.urn
 
     @property
     def posts(self):
@@ -96,6 +103,9 @@ class Site(models.Model):
     def get_engine(self):
         return engines.get_engine(self.engine)
 
+    def get_engine_url(self) -> str:
+        return self.get_engine().get_settings_url(self)
+
     def get_deployer(self):
         return deployers.get_deployer(self.deployment)
 
@@ -106,25 +116,22 @@ class Site(models.Model):
             **kwargs
         )
 
-    def save(self, **kwargs):
-        self.domain = self.domain.strip(".")
-        if self.path.strip("/"):
-            self.path = "/" + self.path.strip("/")
-        return super().save(**kwargs)
-
     def delete(self, **kwargs):
-        self.site.get_engine().delete(site=self)
-        self.site.get_deployer().delete(site=self)
+        self.get_engine().delete(site=self)
+        self.get_deployer().delete(site=self)
         return super().delete(**kwargs)
 
     def absolutize(self, path):
-        return ("https://" if self.secure else "http://") + self.domain + self.path
+        return ("https://" if self.secure else "http://") + self.urn
 
     def can_add_content(self, user: auth.User):
         return self.admin == user or self.staff.contains(user)
 
     def can_manage(self, user: auth.User):
         return self.admin == user
+
+    def get_media_dir(self) -> Path:
+        return settings.MEDIA_ROOT / self.urn
 
 
 class Category(models.Model):
@@ -170,12 +177,12 @@ class Social(models.Model):
 
 
 def content_heading_upload(content, filename):
-    return Path(settings.MEDIA_ROOT / content.site.domain / content.slug / filename).with_stem("heading")
+    return Path(settings.MEDIA_ROOT / content.site.urn / content.slug / filename).with_stem("heading")
 
 class Content(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     title = models.CharField(max_length=128)
-    slug = models.CharField(max_length=64, validators=(validate_unicode_slug,))
+    slug = models.CharField(max_length=128, validators=(validate_unicode_slug,))
     lang = models.CharField(max_length=5, choices=LANG_CHOICES)
     content = models.TextField()
     created = models.DateTimeField()
@@ -211,6 +218,8 @@ class Content(models.Model):
             self.updated_words = self.content.count(" ")
         else:
             self.updated_count += 1
+        if not self.slug:
+            self.slug = slugify(self.title)
         super().save(**kwargs)
 
 
@@ -230,6 +239,9 @@ class Page(Content):
         self.site.get_engine().delete(self.site, page=self)
         self.site.get_deployer().delete(self.site, page=self)
         return super().delete(**kwargs)
+
+    def get_media_dir(self) -> Path:
+        return self.site.get_media_dir / self.pk
 
 
 class Post(Content):
@@ -263,7 +275,7 @@ class Post(Content):
 
 
 def content_image_upload(self, filename):
-    return Path(settings.MEDIA_ROOT / self.site.domain / (self.post.slug if self.post else self.slug) / (filename if not self.name else filename.with_stem(self.name)))
+    return Path(settings.MEDIA_ROOT / self.site.urn / (self.post.slug if self.post else self.slug) / (filename if not self.name else filename.with_stem(self.name)))
 
 class Image(models.Model):
     """Images uploaded for the site. They will be sotred in MEDIA folder and most likely simply linked to the output directory."""
@@ -330,6 +342,21 @@ class Publish(models.Model):
         if not self.finished:
             threading.Thread(target=self.run, daemon=True).start()
         return super().save(**kwargs)
+
+
+class SocialPublish(models.Model):
+    class Meta:
+        unique_together = ('post', 'network')
+
+    post = models.ForeignKey(Post, on_delete=models.CASCADE)
+    network = models.CharField(max_length=2, choices=(
+        ("fb", "facebook"),
+        ("ig", "instagram"),
+        ("x", "twitter"),
+        ("li", "linkedin"),
+        ("fv", "fediverse"),
+    ))
+    published_at = models.DateField(auto_now_add=True)
 
 
 class Mention(models.Model):

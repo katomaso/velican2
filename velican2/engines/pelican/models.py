@@ -1,4 +1,4 @@
-import io
+import re
 import toml
 import pelican
 import pelican.paginator
@@ -8,11 +8,13 @@ import urllib
 import zipfile
 
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.utils.text import slugify
 from django.core.files import File
 from django.db import models
+from django.contrib.auth import models as auth
 
 from django.utils.translation import gettext as _
 from velican2.core import models as core
@@ -61,6 +63,10 @@ class Theme(models.Model):
     root_path = settings.APP_DIR / "pelican" / "theme"
 
     @property
+    def path(self):
+         return Theme.root_path / self.name
+
+    @property
     def downloaded(self):
         if not self.name:
             return False
@@ -73,8 +79,11 @@ class Theme(models.Model):
         return self.name in [Path(path).stem for path, _ in pelican_themes.themes()]
 
     @property
-    def path(self):
-         return Theme.root_path / self.name
+    def readme(self):
+        for path in Path(self.path).iterdir():
+            if "readme" in str(path).lower():
+                return path.read_text(encoding="utf-8")
+        return None
 
     def clean(self):
         errors = {}
@@ -125,6 +134,13 @@ class Theme(models.Model):
                 if save:
                     self.save()
                 return False
+        if save:
+            self.save()
+        return True
+
+    def reload(self, save=True):
+        if not self.downloaded:
+            return False
 
         image_paths = [path for path in Path(self.path).iterdir()
             if path.suffix in (".jpg", ".jpeg", ".png")]
@@ -136,14 +152,6 @@ class Theme(models.Model):
             self.description = self.readme
         if save:
             self.save()
-        return True
-
-    @property
-    def readme(self):
-        for path in Path(self.path).iterdir():
-            if "readme" in str(path).lower():
-                return path.read_text(encoding="utf-8")
-        return None
 
     def install(self, save=True):
         """Install the theme into pelican and django webserver"""
@@ -166,6 +174,8 @@ class Theme(models.Model):
             self.download(save=False)
         if self.downloaded and not self.installed:
             self.install(save=False)
+        if not self.image and not self.description:
+            self.reload(save=False)
         return super().save(**kwargs)
 
     def delete(self, **kwargs):
@@ -176,6 +186,7 @@ class Theme(models.Model):
     def update(self, save=True):
         self.download(save=save)
         self.install(save=save)
+        self.reload(save=save)
         self.updated = datetime.now()
         if save:
             return self.save()
@@ -207,11 +218,11 @@ class Settings(models.Model):
         ('{category}/{slug}.html', f"<{_('category')}>/<{_('slug')}>.html"),
         ('{category}/{date:%Y}/{slug}.html', f"<{_('category')}>/<{_('year')}>/<{_('slug')}>.html"),
     )
-    site = models.OneToOneField(core.Site, related_name="pelican", on_delete=models.CASCADE)
-    theme = models.ForeignKey(Theme, on_delete=models.DO_NOTHING)
+    site = models.OneToOneField(core.Site, related_name="pelican", on_delete=models.CASCADE, db_index=True)
+    theme = models.ForeignKey(Theme, null=True, on_delete=models.DO_NOTHING)
     show_pages_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display pages in menu"))
     show_categories_in_menu = models.BooleanField(default=True, null=False, help_text=_("Display categories in menu"))
-    post_url_template = models.CharField(max_length=255, choices=POST_URL_TEMPLATES, default=POST_URL_TEMPLATES[0][0])
+    post_url_template = models.CharField(max_length=255, choices=POST_URL_TEMPLATES, default=POST_URL_TEMPLATES[0][0], help_text=_("URL of your post - can contain post's category, creation date or just slug"))
     page_url_prefix = models.CharField(max_length=35, blank=True, default="", help_text=_("Pages URL prefix (pages urls will look like 'prefix/{slug}.html')"))
     category_url_prefix = models.CharField(max_length=35, default=_("category"), help_text=_("Category URL prefix (pages urls will look like 'prefix/{slug}.html')"))
     author_url_prefix = models.CharField(max_length=35, default=_("author"), help_text=_("Author URL prefix (pages urls will look like 'prefix/{slug}.html')"))
@@ -219,11 +230,6 @@ class Settings(models.Model):
     show_internal_pages_author = models.BooleanField(default=False, help_text=_("Include authors page"))
     show_internal_pages_categories = models.BooleanField(default=True, help_text=_("Include categories page"))
     show_internal_pages_tags = models.BooleanField(default=True, help_text=_("Include tags page"))
-    facebook = models.CharField(max_length=128, null=True, blank=True)
-    twitter = models.CharField(max_length=128, null=True, blank=True)
-    linkedin = models.CharField(max_length=128, null=True, blank=True)
-    github = models.CharField(max_length=128, null=True, blank=True)
-    instagram = models.CharField(max_length=128, null=True, blank=True)
     plugins = models.ManyToManyField('pelican.Plugin', blank=True)
 
     class Meta:
@@ -249,12 +255,14 @@ class Settings(models.Model):
         return ((self.tags_url_prefix + "/") if self.tags_url_prefix else "") + "index.html"
 
     def save(self, **kwargs):
+        if self.theme is None:
+            self.theme = Theme.objects.all().first()
+            super().save(**kwargs) # create all relations that self.conf later uses
         conf = self.conf
         Path(conf["PATH"]).mkdir(exist_ok=True, parents=True)
         Path(conf["PATH"], conf['PAGE_PATHS'][0]).mkdir(exist_ok=True)
         Path(conf["PATH"], conf['ARTICLE_PATHS'][0]).mkdir(exist_ok=True)
         Path(conf["OUTPUT_PATH"]).mkdir(exist_ok=True, parents=True)
-        return super().save(**kwargs)
 
     def delete(self, **kwargs):
         shutil.rmtree(self.get_source_path())
@@ -269,7 +277,7 @@ class Settings(models.Model):
         self._settings.update(pelican.settings.DEFAULT_CONFIG)
         self._settings.update(settings.PELICAN_DEFAULT_SETTINGS)
         self._settings.update({
-            'PATH': str(settings.HTML_SOURCE / self.site.domain / self.site.path),
+            'PATH': str(settings.HTML_SOURCE / self.site.urn),
             'ARTICLE_URL': (self.post_url_template if not self.post_url_template.endswith("index.html") else self.post_url_template[:-10]).lstrip("/"),
             'ARTICLE_SAVE_AS': self.post_url_template,
             'PAGE_URL': self.page_url_template,
@@ -280,31 +288,31 @@ class Settings(models.Model):
             'CATEGORY_SAVE_AS': self.category_url_template,
             'AUTHOR_URL': self.author_url_template,
             'AUTHOR_SAVE_AS': self.author_url_template,
-            'OUTPUT_PATH': str(settings.HTML_OUTPUT / self.site.domain / self.site.path),
+            'OUTPUT_PATH': str(settings.HTML_OUTPUT / self.site.urn),
             'THEME': str(Path(pelican_themes._THEMES_PATH, self.theme.name)),
             # Why the heck the dafault PAGINATION_PATTERNS are broken?!
             'PAGINATION_PATTERNS': [pelican.paginator.PaginationRule(*x) for x in pelican.settings.DEFAULT_CONFIG['PAGINATION_PATTERNS']],
-            'FACEBOOK_PROFILE': self.facebook,
-            'TWITTER_PROFILE': self.twitter,
-            'LINKEDIN_PROFILE': self.linkedin,
-            'GITHUB_PROFILE': self.github,
-            'INSTAGRAM_PROFILE': self.instagram,
             'DISPLAY_CATEGORIES_ON_MENU': self.show_categories_in_menu,
             'DISPLAY_PAGES_ON_MENU': self.show_pages_in_menu,
+            'FACEBOOK_PROFILE': self.site.facebook,
+            'TWITTER_PROFILE': self.site.twitter,
+            'LINKEDIN_PROFILE': self.site.linkedin,
+            'GITHUB_PROFILE': self.site.github,
+            'INSTAGRAM_PROFILE': self.site.instagram,
             'ROBOTS': "noindex" if self.site.allow_crawlers else "all",
         })
 
         social = []
-        if self.facebook:
-            social.append(('facebook', self.facebook))
-        if self.twitter:
-            social.append(('twitter', self.twitter))
-        if self.linkedin:
-            social.append(('linkedin', self.linkedin))
-        if self.github:
-            social.append(('github', self.github))
-        if self.instagram:
-            social.append(('instagram', self.instagram))
+        if self.site.facebook:
+            social.append(('facebook', self.site.facebook))
+        if self.site.twitter:
+            social.append(('twitter', self.site.twitter))
+        if self.site.linkedin:
+            social.append(('linkedin', self.site.linkedin))
+        if self.site.github:
+            social.append(('github', self.site.github))
+        if self.site.instagram:
+            social.append(('instagram', self.site.instagram))
         if social:
             logger.debug(f"Social for {self}: {social}")
             self._settings.update(SOCIAL=social)
@@ -393,6 +401,41 @@ class Settings(models.Model):
                 author=post.author.username if post.author else "",
                 lang=post.lang,
             )
+
+    def import_article(self, article: File, user: auth.User) -> core.Post:
+        metaLine = re.compile(r'^[a-zA-Z_]+:(.*)')
+        post = core.Post(site=self, author=user)
+        post.title = article.name[:-3]  # strip the .md extension
+        with article.open() as stream:
+            data = stream.read()
+            offset = 0
+            for line in data:
+                if metaLine.match(line):
+                    offset += len(line)
+                    key, value = line.split(":")
+                    key = key.lower()
+                    value = value.strip()
+                    if key == "title":
+                        post.title = value
+                    elif key == "date":
+                        post.created = date.fromisoformat(value)
+                    elif key == "updated":
+                        post.updated = date.fromisoformat(value)
+                    elif key == "status":
+                        post.draft = (value.lower() == "draft")
+                    elif key == "category":
+                        post.category = core.Category.objects.get_or_create(site=self, title=value, slug=slugify(value))
+                    elif key == "summary":
+                        post.description = value
+                if len(line.strip()) == 0:
+                    post.content = data[offset+1:]
+                    break
+        found = core.Post.objects.filter(site=self, title=post.title).values('id')
+        if len(found) == 1:
+            logger.warn("Article {title} already exists - updating")
+            post.id = found[0]['id']
+            post.save()
+
 
 
 class ThemeSettings(models.Model):

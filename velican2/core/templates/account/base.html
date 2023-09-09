@@ -3,8 +3,15 @@
 
 {% block "css" %}
 <style>
+label {
+  min-width: 8em;
+}
+input[type="submit"] {
+  margin-top: 1em;
+}
 .socialaccount_providers {
     padding-left: 1em;
+    margin-top: 1em;
 }
 .socialaccount_providers li {
     list-style-type: none;
@@ -15,18 +22,18 @@
     line-height: 16pt;
     font-size: 16pt;
 }
+.content a {
+  text-decoration: underline;
+}
+.content a:hover {
+  text-decoration: none;
+}
 </style>
 {% endblock %}
 
 {% block "main" %}
-    <nav>
-      <ul>
-        {% if user.is_authenticated %}
-        <li><a href="{% url 'account_email' %}">{% trans "Change E-mail" %}</a></li>
-        <li><a href="{% url 'account_logout' %}">{% trans "Sign Out" %}</a></li>
-        {% endif %}
-      </ul>
-    </nav>
-    {% block content %}
-    {% endblock %}
+    <div class="content">
+      {% block content %}
+      {% endblock %}
+    </div>
 {% endblock %}

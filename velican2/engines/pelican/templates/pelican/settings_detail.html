@@ -1,6 +1,52 @@
 {% extends "pelican/base.html" %}
 
+{%block "css"%}<style>
+    input {
+        margin-bottom: 1em;
+    }
+    input[type='text'], select {
+        margin-bottom: 1.5em;
+    }
+    legend {
+        font-size: 16pt;
+        font-weight: 500;
+        margin-bottom: 0.8em;
+    }
+</style>{%endblock%}
 
-{% block content %}
-Theme: {{object.theme}} <a href="{% url 'pelican:themes' id=object.id %}">change</a>
+{% block "content" %}
+<h1>Nastavení vzhledu {{object.site}}</h1>
+<form method="POST">
+    {% csrf_token %}
+    <section>
+        <legend>Nastavení URL</legend>
+        <label for="{{form.post_url_template.id_for_label}}">{{form.post_url_template.help_text}}</label><br>{{form.post_url_template}}<br>
+        <label for="{{form.page_url_prefix.id_for_label}}">{{form.page_url_prefix.help_text}}</label><br>{{form.page_url_prefix}}<br>
+        <label for="{{form.category_url_prefix.id_for_label}}">{{form.category_url_prefix.help_text}}</label><br>{{form.category_url_prefix}}<br>
+        <label for="{{form.author_url_prefix.id_for_label}}">{{form.author_url_prefix.help_text}}</label><br>{{form.author_url_prefix}}<br>
+        <label for="{{form.tags_url_prefix.id_for_label}}">{{form.tags_url_prefix.help_text}}</label><br>{{form.tags_url_prefix}}<br>
+    </section>
+    <section>
+        <legend>Zobrazení stránky</legend>
+        {{form.show_pages_in_menu}} <label for="{{form.show_pages_in_menu.id_for_label}}">{{form.show_pages_in_menu.help_text}}</label><br>
+        {{form.show_categories_in_menu}} <label for="{{form.show_categories_in_menu.id_for_label}}">{{form.show_categories_in_menu.help_text}}</label><br>
+        {{form.show_internal_pages_author}} <label for="{{form.show_internal_pages_author.id_for_label}}">{{form.show_internal_pages_author.help_text}}</label><br>
+        {{form.show_internal_pages_categories}} <label for="{{form.show_internal_pages_categories.id_for_label}}">{{form.show_internal_pages_categories.help_text}}</label><br>
+        {{form.show_internal_pages_tags}} <label for="{{form.show_internal_pages_tags.id_for_label}}">{{form.show_internal_pages_tags.help_text}}</label><br>
+    </section>
+
+    <section class="grid lg:grid-cols-3 gap-2">
+        <legend>Vzhled</legend>
+        {% for theme in themes %}
+        <div>
+            <input type="radio" name="theme" value="{{theme.name}}" id="{{theme.name}}"{%if object.theme == theme%} checked{%endif%}>
+            <label for="{{theme.name}}">{{theme.name}}</label>
+            <img src="{{theme.image.url}}" class="w-fit">
+        </div>
+        {% endfor %}
+    </section>
+
+    <button type="submit">Uložit</button>
+</form>
+
 {% endblock %}

@@ -1,18 +1,32 @@
 {% extends 'base.html' %}
 
 {% block "css" %}
+<style>
 .markdownx {
     display: flex;
     flex-wrap: wrap;
 }
+a {
+    text-decoration: underline;
+}
+</style>
 {% endblock %}
 
 {% block "main" %}
-<h1>Doména {{object.domain}}</h1>
+<h1>Doména {{object.urn}}</h1>
 
-Počet příspěvků: {{posts_num}}<br>
-Počet odkazů: <br>
+Počet příspěvků: {{posts.length}}<br>
+Počet odkazů: #TODO <br>
+<a href="{% url 'core:add_post' object.urn %}">Přidat příspěvěk</a>
 
-<a href="{% url 'core:add_post' object.domain %}">Přidat příspěvěk</a>
+<h2>Příspěvky</h2>
+<ul>
+{% for post in posts %}
+<li><a href="{% url 'core:post' site.urn post.id %}">{{post.title}}</a></li>
+{% endfor %}
+</ul>
+
+<h2>Technologie</h2>
+Vykreslovač: <a href="{{object.get_engine_url}}">{{object.engine}}</a>
 
 {% endblock %}

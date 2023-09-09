@@ -23,7 +23,7 @@ urlpatterns = [
     path('accounts/', include('allauth.urls')),
     path('pelican/', include('velican2.engines.pelican.urls')),
     path('', include('velican2.core.urls', namespace="core")),
-    path('markdownx/', include('markdownx.urls')),
+    path('martor/', include('martor.urls')),
 ]
 
 if settings.DEBUG :

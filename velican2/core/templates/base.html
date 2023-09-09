@@ -11,22 +11,26 @@
 </head>
 <body>
     <nav>{% block "nav" %}
+        <a href="{% url 'core:index' %}">Domů</a>
+        <span>
         {% if user.is_authenticated %}
             {% if user_has_site %}
-        <a href="{% url 'core:sites' %}">Moje stránky</a>
+        <a href="{% url 'core:sites' %}">Moje domény</a>
             {% else %}
-        <a href="{% url 'core:start' %}">Start</a>
+        <a href="{% url 'core:start' %}">Přidat doménu</a>
             {% endif %}
+        <a href="{% url 'account_logout' %}">Odhlásit</a>
         {% else %}
         <a href="{% url 'account_login' %}">Přihlásit se</a>
         {% endif %}
+        </span>
     {% endblock %}</nav>
     <main>
         {% if messages %}
         <div class="absolute top-10 z-10">
         <ul>
             {% for message in messages %}
-            <li class="mb-3 list-none {% if message.level.info %}bg-blue-300{% else %}bg-red-300{%endif%}">{{message}}</li>
+            <li class="mb-3 list-none {% if message.level == DEFAULT_MESSAGE_LEVELS.INFO %}bg-blue-300{% else %}{% if message.level == DEFAULT_MESSAGE_LEVELS.SUCCESS %}bg-green-300{%else%}bg-red-300{%endif%}{%endif%}" onclick="this.deleteNode()">{{message}}</li>
             {% endfor %}
         </ul>
         </div>

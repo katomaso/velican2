@@ -2,24 +2,87 @@
 
 {% block "css" %}
 <style>
-    .markdownx {
-        display: flex;
-        flex-wrap: wrap;
+    textarea[name="description"], textarea[name="punchline"] {
+        height: 4em;
+    }
+    .ui.secondary.pointing.menu.tab-martor-menu .martor-toolbar {
+        padding: 0;
     }
 </style>
 {% endblock %}
 
+{% block extra_head %}
+<script src="/static/core/image-explorer.js"></script>
+<script>customElements.define("image-explorer", ImageExplorer);</script>
+{% endblock %}
+
 {% block "main" %}
-<form role="form" method="POST" action="">{% csrf_token %}
-    <section class="container">
-        <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
-        <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}}<br>
-        <label for="{{form.description.id_for_label}}">Shrnutí</label>{{form.description}}<br>
-    </section>
-    <section>
-        {{form.content}}
-    </section>
-    {{form.punchline}}
-</form>
+<div class="container mx-auto flex">
+    <ul>
+    {% for other_post in site.posts %}
+        <li>{{other_post}}</li>
+    {% endfor %}
+    </ul>
+    <form role="form" method="POST" class="__post">{% csrf_token %}
+        <section class="container">
+            <h1>Článek pro {{site.urn}}</h1>
+            <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
+            <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}}<br>
+            <label for="{{form.description.id_for_label}}">Shrnutí</label><br>
+            {{form.description}}
+        </section>
+        <section>
+            <image-explorer data-target="{{form.content.name}}" data-images-url="{% url 'core:images' site.urn %}"></image-explorer>
+            <label for="{{form.content.id_for_label}}">Text</label><br>
+            {{form.content}}<br>
+            <button type="submit" name="action" value="save">Uložit</button>
+        </section>
+        <label for="{{form.punchline.id_for_label}}">Oznámení o článku na sociální sítě</label><br>
+        {{form.punchline}}
+        <br>
+        <button type="submit" name="action" value="publish">Publikovat</button>
+    </form>
+</div>
 {{ form.media }}
+
+<script>
+(function ($) {
+    if (!$) {
+        $ = django.jQuery;
+    }
+    var mainMartor = $('.main-martor')
+    var field_name = mainMartor.data('field-name');
+    var editorId = 'martor-' + field_name;
+    var editor = ace.edit(editorId);
+
+    /**
+     * Select an image from gallery and insert given link into the editro
+     */
+    var galleryToImageLink = function (editor) {
+        let img_expl = document.querySelector(`image-explorer[data-target=${field_name}]`);
+        img_expl.show((imageData) => {
+            var curpos = editor.getCursorPosition();
+            editor.session.insert(curpos, '![' + imageData.name + '](' + imageData.link + ') ');
+            editor.focus();
+            editor.selection.moveTo(
+                curpos.row,
+                curpos.column + imageData.name.length + 2
+            );
+        });
+    }
+
+    editor.commands.addCommand({
+        name: 'gallery',
+        bindKey: {win: 'Ctrl-G',  mac: 'Command-G'},
+        exec: galleryToImageLink,
+        readOnly: false, // false if this command should not apply in readOnly mode
+        // multiSelectAction: "forEach", optional way to control behavior with multiple cursors
+        // scrollIntoView: "cursor", control how cursor is scolled into view after the command
+    });
+
+    $('.markdown-image-link[data-field-name=' + field_name + ']').click(function () {
+        galleryToImageLink(editor);
+    });
+})(jQuery);
+</script>
 {% endblock %}

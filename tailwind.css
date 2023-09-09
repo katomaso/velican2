@@ -3,9 +3,23 @@
 @tailwind utilities;
 
 nav {
-    height: 32pt;
-    line-height: 32pt;
-    font-size: 25pt;
+    font-size: 12pt;
+    line-height: 14pt;
+    display: flex;
+    color: white;
+    justify-content: space-between;
+    @apply bg-green-700;
+}
+
+nav a {
+    display: inline-block;
+    padding: 1.2em 1em;
+    color: white;
+}
+
+nav a:hover {
+    color: white;
+    background-color: rgba(255, 255, 255, 0.2);
 }
 
 h1 {
@@ -25,6 +39,20 @@ h3 {
 
 p {
     @apply text-lg;
+}
+
+form {
+    padding: 1.5em 0;
+}
+
+form ul {
+    list-style: none;
+}
+
+span.helptext {
+    font-style: italic;
+    font-size: smaller;
+    color: #666;
 }
 
 label {
@@ -53,6 +81,7 @@ input[type="text"]:focus {
 textarea {
     min-width: 34em;
     min-height: 3em;
+    border: 2px solid #666;
 }
 
 section {
@@ -65,7 +94,7 @@ section {
     padding: 0 0.5em;
 }
 
-.primary {
+.primary, button[type="submit"], input[type="submit"] {
     @apply rounded bg-green-700 text-white px-8 py-3;
 }
 

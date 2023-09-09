@@ -10,6 +10,9 @@ class IDeployer:
     def delete(self, site, post=None, page=None):
         raise NotImplementedError()
 
+    def is_available(self):
+        raise NotImplementedError()
+
 
 def get_deployer(deployer: str):
     if deployer not in deployers:

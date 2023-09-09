@@ -2,12 +2,16 @@ from typing import Any, Dict
 from django import forms
 
 from django.core.exceptions import ValidationError
+from django.db.transaction import atomic
 from django.conf import settings
+from django.contrib.auth import models as auth
 
-from markdownx.fields import MarkdownxFormField
+from martor.fields import MartorFormField
 
+from . import logger
 from .models import Site, Post
-from velican2.engines.pelican import models as pelican
+from ..engines.pelican import models as pelican
+
 
 class StartForm(forms.Form):
     title = forms.CharField(max_length=128)
@@ -15,7 +19,7 @@ class StartForm(forms.Form):
     own_domain = forms.CharField(max_length=100, required=False)
     # domain = forms.CharField(max_length=100)
     subdomain = forms.CharField(max_length=100, required=False)
-    pelican_theme = forms.ChoiceField(choices=pelican.Theme.objects.all().values_list('name', 'name'), required=True)  # TODO: change to not-required once more engines are ready
+    pelican_theme = forms.ChoiceField(choices=lambda: pelican.Theme.objects.all().values_list('name', 'name'), required=True)  # TODO: change to not-required once more engines are ready
 
     def clean(self) -> Dict[str, Any]:
         cleaned_data = super().clean()
@@ -26,32 +30,40 @@ class StartForm(forms.Form):
             self.add_error('own_domain', ValidationError("Specify either your own domain or a subdomain"))
             self.add_error('subdomain', ValidationError("Specify either your own domain or a subdomain"))
 
-    def save(self):
+    @atomic
+    def save(self, admin: auth.User):
         """Should return an object (class) that will be used in redirect URL contruction"""
         data = self.cleaned_data
-        site_kwargs = {}
+        logger.info(data)
+        site_kwargs = {"admin": admin}
         if data.get('pelican_theme'):
             site_kwargs['engine'] = "pelican"
         if data.get('own_domain'):
-            site_kwargs['domain'] = data.get("own_domain")
+            site_kwargs['urn'] = data.get("own_domain")
         else:
-            site_kwargs['domain'] = data.get("subdomain") + "." + settings.DOMAIN
+            site_kwargs['urn'] = data.get("subdomain") + "." + settings.DOMAIN
         site_kwargs['title'] = data.get('title')
         site_kwargs['subtitle'] = data.get('subtitle')
         # create site and the engine's settings will auto-create with it
         site = Site.objects.create(**site_kwargs)
 
         if data.get('pelican_theme'):
-            pelican = pelican.Settings.objects.get(site=site)
+            pelican = pelican.Settings.objects.get_or_create(site=site)
             pelican.theme = pelican.Theme.objects.get(name=data.get('pelican_theme'))
             pelican.save()
-
         return site
+
+
+class PostCreateForm(forms.ModelForm):
+    class Meta:
+        model = Post
+        fields = ("title", "lang", "description", 'site', 'author')
+
 
 
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ("title", "lang", "description", "punchline", "content", )
+        fields = ("title", "lang", "description", "punchline", "content", 'site', 'author')
 
-    content = MarkdownxFormField()
+    content = MartorFormField()

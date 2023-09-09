@@ -11,14 +11,21 @@ class AWS(AppConfig, IDeployer):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'velican2.deployers.aws'
 
+    def is_available(self):
+        return self.available
+
     def ready(self):
+        self.available = None
         if not settings.AWS_KEY:
-            logger.error("No AWS credentials set via AWS_KEY and AWS_SECRET")
+            logger.error("AWS deployer not available! No AWS credentials set via AWS_KEY and AWS_SECRET")
+            self.available = False
+            return
         self.s3 = boto3.resource('s3',
             aws_access_key_id=settings.AWS_KEY,
             aws_secret_access_key=settings.AWS_SECRET,
         )
         self.cloudfront = boto3.client('cloudfront')
+        self.available = True
 
     def bucket(self, bucket_name):
         """Get or create S3 bucket for given site"""

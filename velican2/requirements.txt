@@ -3,6 +3,7 @@ django
 django-allauth
 django-admin-tools
 django-markdownx
+martor
 markdown
 pelican
 Pillow

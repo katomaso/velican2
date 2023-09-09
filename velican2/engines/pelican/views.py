@@ -7,6 +7,7 @@ from django import forms
 
 from . import logger
 from .models import Settings, Theme, ThemeSettings
+from .forms import SettingsForm
 
 
 class SettingsList(LoginRequiredMixin, generic.ListView):
@@ -16,9 +17,24 @@ class SettingsList(LoginRequiredMixin, generic.ListView):
         return Settings.objects.filter(site__admin=self.request.user)
 
 
-class SettingsDetail(LoginRequiredMixin, generic.DetailView):
+class SettingsDetail(LoginRequiredMixin, generic.UpdateView):
     model = Settings
     pk_url_kwarg = "id"
+    form_class = SettingsForm
+    template_name = "pelican/settings_detail.html"
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        return super().get_context_data(**kwargs,
+                                        themes=Theme.objects.filter(image__isnull=False).exclude(image=""))
+
+
+class ImportArticle(LoginRequiredMixin, generic.View):
+    model = Settings
+    pk_url_kwarg = "id"
+
+    def post(self):
+        for file in self.request.FILES:
+            self.object.import_article(file, self.request.user)
 
 
 class ThemeList(LoginRequiredMixin, generic.ListView):

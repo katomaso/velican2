@@ -7,7 +7,7 @@ from .models import Theme, Plugin, Settings, ThemeSettings
 class ThemeAdmin(admin.ModelAdmin):
     list_display = ("name", "downloaded", "installed", "category", "url")
     readonly_fields = ("updated", "downloaded", "installed", "path", "log")
-    actions = ["download", 'install', 'update']
+    actions = ["download", 'install', 'update', 'reload']
     actions_on_top = True
 
     @admin.action(description=_('Download the URL'))
@@ -24,6 +24,11 @@ class ThemeAdmin(admin.ModelAdmin):
     def update(self, request, queryset):
         for object in queryset.all():
             object.update(recurse=True, save=True)
+
+    @admin.action(description=_('Refresh images and README'))
+    def reload(self, request, queryset):
+        for object in queryset.all():
+            object.reload(save=True)
 
 class PluginAdmin(admin.ModelAdmin):
     list_display = ("id", "default")
