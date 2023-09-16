@@ -32,13 +32,13 @@ class CaddyConfig(AppConfig, IDeployer):
         # just make sure that caddy points to the renderer's output
         routes = requests.get(settings.CADDY_URL + "/config/apps/http/servers/velican/routes/").json()
         logger.debug(f"Caddy routes {routes}")
-        if routes and any(map(lambda h: site.domain in h['match'][0]['host'], routes)):
-            logger.debug(f"Site {site.domain} already in caddy handlers")
+        if routes and any(map(lambda h: site.urn in h['match'][0]['host'], routes)):
+            logger.debug(f"Site {site.urn} already in caddy handlers")
             return
         requests.post(
             settings.CADDY_URL + "/config/apps/http/servers/velican/routes/",
             json={
-                "match": [{"host":[site.domain,]}],
+                "match": [{"host":[site.urn,]}],
                 "handle": [{
                     "handler": "file_server",
                     "root": str(site.get_engine().get_output_path(site))

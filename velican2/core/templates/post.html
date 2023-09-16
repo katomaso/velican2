@@ -17,13 +17,23 @@
 {% endblock %}
 
 {% block "main" %}
-<div class="container mx-auto flex">
-    <ul>
-    {% for other_post in site.posts %}
-        <li>{{other_post}}</li>
-    {% endfor %}
-    </ul>
+<div class="container mx-auto">
+    <a href="{% url 'core:site' site %}" class="underline">&lt; Zpět na seznam článků</a>
     <form role="form" method="POST" class="__post">{% csrf_token %}
+        {% if form.errors %}
+        {% for field in form %}
+            {% for error in field.errors %}
+                <div class="alert alert-danger">
+                    <strong>{{field.name}}: {{ error|escape }}</strong>
+                </div>
+            {% endfor %}
+        {% endfor %}
+        {% for error in form.non_field_errors %}
+            <div class="alert alert-danger">
+                <strong>{{ error|escape }}</strong>
+            </div>
+        {% endfor %}
+        {% endif %}
         <section class="container">
             <h1>Článek pro {{site.urn}}</h1>
             <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
@@ -34,14 +44,19 @@
         <section>
             <image-explorer data-target="{{form.content.name}}" data-images-url="{% url 'core:images' site.urn %}"></image-explorer>
             <label for="{{form.content.id_for_label}}">Text</label><br>
-            {{form.content}}<br>
+            {{form.content}}
+            {{form.draft}} <label for="{{form.draft.id_for_label}}">Stále je to jen koncept</label><br><br> 
             <button type="submit" name="action" value="save">Uložit</button>
         </section>
-        <label for="{{form.punchline.id_for_label}}">Oznámení o článku na sociální sítě</label><br>
+        <section>
+        <label for="{{form.punchline.id_for_label}}">Oznámení o článku na sociální</label><br>
         {{form.punchline}}
         <br>
-        <button type="submit" name="action" value="publish">Publikovat</button>
-    </form>
+        <button type="submit" name="action" value="publish" class="mr-4">Publikovat</button>
+        {{form.broadcast}}
+        <label for="{{form.broadcast.id_for_label}}">Publikovat i na sociálních sítích?</label><br>
+        </section>
+</form>
 </div>
 {{ form.media }}
 

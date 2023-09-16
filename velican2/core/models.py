@@ -36,13 +36,17 @@ def site_heading_upload(site, filename):
     return Path(settings.MEDIA_ROOT / site.urn / filename).with_stem("heading")
 
 ENGINE_CHOICES = tuple((engine, engine.title()) for engine in engines.engines)
+DEPLOYER_CHOICES = (
+    ("caddy", "local web server"),
+    ("aws", "AWS CloudFront"),
+)
 
 class Site(models.Model):
     urn = models.CharField(max_length=128, db_index=True, help_text="Example: example.com/blog", unique=True,
                            validators=(RegexValidator(regex=r'^([a-zA-Z0-9_\-][a-zA-Z0-9_/\-]+\.?)+$'),
                                        RegexValidator(regex=r'[^\./]$', message=_("URN must not end with dot or slash"))))
     admin = models.ForeignKey(auth.User, on_delete=models.CASCADE, related_name="+")
-    staff = models.ManyToManyField(auth.User)
+    staff = models.ManyToManyField(auth.User, blank=True)
     lang = models.CharField(max_length=48, choices=LANG_CHOICES, default=settings.LANGUAGE_CODE)
     timezone = models.CharField(max_length=128, default=settings.TIME_ZONE)
     secure = models.BooleanField(default=True, help_text="The site is served via secured connection https")
@@ -56,12 +60,7 @@ class Site(models.Model):
     allow_training = models.BooleanField(default=True, help_text="Allow AI engines to index this page")
 
     engine = models.CharField(max_length=12, null=False, choices=ENGINE_CHOICES, default=engines.engines[0])
-    deployment = models.CharField(max_length=12, null=False,
-        choices=(
-            ("aws", "AWS CloudFront"),
-            ("caddy", "local Caddy server")
-        )
-    )
+    deployment = models.CharField(max_length=12, null=False, choices=DEPLOYER_CHOICES, default=DEPLOYER_CHOICES[0][0])
 
     facebook = models.CharField(max_length=128, null=True, blank=True)
     twitter = models.CharField(max_length=128, null=True, blank=True)
@@ -198,9 +197,9 @@ class Content(models.Model):
 
     # For some unknown reason the prev.updated is always like 90 seconds ahead
     def clean(self):
-        if self.id: # model aready exists
-            prev = Post.objects.get(id=self.id)
-            logger.debug(f"prev.updated {prev.updated} SHOULD BE <= self.updated {self.updated}")
+        if self.pk: # model aready exists
+            prev = self.__class__.objects.get(pk=self.pk)
+            logger.debug(f"prev.updated {prev.updated} MUST BE <= {self.updated}")
             if prev.updated > self.updated:
                 raise ValidationError("You are editing an outdated version")
         return super().clean()
@@ -228,6 +227,7 @@ class Page(Content):
     It is static pages that has value through the whole tile such as "about-me" and "services".
     """
     class Meta:
+        abstract = False
         verbose_name = _("Page")
         verbose_name_plural = _("Pages")
         unique_together = (('site', 'slug', 'lang'), )
@@ -254,6 +254,7 @@ class Post(Content):
     broadcast = models.BooleanField(default=True, help_text="If the post should be published on all linked social media")
 
     class Meta:
+        abstract = False
         verbose_name = _("Post")
         verbose_name_plural = _("Posts")
         unique_together = (('site', 'slug', 'lang'), )
@@ -270,7 +271,7 @@ class Post(Content):
         self.site.get_deployer().delete(self.site, post=self)
         return super().delete(**kwargs)
 
-    def get_url(self, absolute=False):
+    def get_url(self, absolute=True):
         return self.site.get_engine().get_post_url(self.site, self, absolute=absolute)
 
 

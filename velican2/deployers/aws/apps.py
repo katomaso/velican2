@@ -63,7 +63,7 @@ class AWS(AppConfig, IDeployer):
 
     def deploy(self, site, post=None, page=None, **kwargs):
         from velican2.core import models as core
-        bucket = self.bucket(site.domain)
+        bucket = self.bucket(site.urn)
         root = site.get_engine().get_output_path(site)
         if post is not None:
             path = site.get_engine().get_post_output_path(site, post)
@@ -91,7 +91,7 @@ class AWS(AppConfig, IDeployer):
             bucket.upload_file(path, str(path.relative_to(root)).replace("\\", "/"), ExtraArgs={'ContentType': mimetypes.guess_type(path.name)[0]})
 
     def purge(self, site):
-        bucket = self.bucket(site.domain)
+        bucket = self.bucket(site.urn)
         # TODO: not tested
         bucket.delete_objects(Delete={
             'Objects': [{'Key': remote_object} for remote_object in bucket.list_objects()],
@@ -99,7 +99,7 @@ class AWS(AppConfig, IDeployer):
         })
 
     def delete(self, site, post=None, page=None):
-        bucket = self.bucket(site.domain)
+        bucket = self.bucket(site.urn)
         root = site.get_engine().get_output_path(site)
         if post is not None:
             path = site.get_engine().get_post_output_path(site, post)

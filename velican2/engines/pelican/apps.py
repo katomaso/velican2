@@ -84,7 +84,7 @@ class Engine(AppConfig):
 
     def get_settings_url(self, site) -> str:
         settings = self._get_settings(site)
-        return reverse("pelican:setting", kwargs={'id':settings.id})
+        return reverse("pelican:setting", kwargs={'site': site.urn})
 
     def get_page_url(self, site, page, absolute=True):
         settings = self._get_settings(site)
@@ -112,7 +112,7 @@ def on_site_save(instance, **kwargs): # instance: core.Site
         )
     )
     if created:
-        logger.info(f"Created default pelican engine for {instance.domain}")
+        logger.info(f"Created default pelican engine for {instance}")
 
 
 def on_post_save(instance, **kwargs): # instance: core.Post

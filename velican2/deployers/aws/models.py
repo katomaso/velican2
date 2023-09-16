@@ -24,14 +24,14 @@ class AWS(models.Model):
 
     def save(self, **kwargs):
         if not self.id and not self.bucket_id:
-            bucket = self.s3.Bucket(self.site.domain)
-            logger.info("Creating a new bucket " + self.site.domain)
+            bucket = self.s3.Bucket(self.site.urn)
+            logger.info("Creating a new bucket " + self.site.urn)
             bucket.create(
                 ACL='private',
                 CreateBucketConfiguration={
                     'LocationConstraint': 'eu-central-1'
                 })
-            self.bucket_id = self.site.domain
+            self.bucket_id = self.site.urn
         return super().save(**kwargs)
 
     def refresh(self):

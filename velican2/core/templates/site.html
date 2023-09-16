@@ -12,7 +12,7 @@ a {
 </style>
 {% endblock %}
 
-{% block "main" %}
+{% block "content" %}
 <h1>Doména {{object.urn}}</h1>
 
 Počet příspěvků: {{posts.length}}<br>
@@ -27,6 +27,27 @@ Počet odkazů: #TODO <br>
 </ul>
 
 <h2>Technologie</h2>
-Vykreslovač: <a href="{{object.get_engine_url}}">{{object.engine}}</a>
-
+Vykreslovač: <a href="{{object.get_engine_url}}">{{object.engine}}</a><br>
+Nasazovač: {{object.deployer}}<br>
+{% if last_deploy %}
+Poslední nasazení
+{% if last_deploy.finished %}
+    {% if last_deploy.success %}✅ {{last_deploy.finished}}
+        {% if last_deploy.post %}<a href="{{last_deploy.post.get_url}}">{{last_deploy.post}}</a>{%endif%}
+    {% else %}❌ {{last_deploy.message}}{% endif %}
+{% else %}
+    probíhá od {{last_deploy.started}} <a href="{% url 'core:site' site=site.urn %}">obnovit</a>
+{% endif %}
+{% if last_deploy.success == False %}<form action="{% url 'core:publish' object.urn %}" method="post">
+    <input type="hidden" name="post" value="{{post.id}}">{% csrf_token %}
+    <button name="action" type="submit" value="publish">Zkusit znovu</button></form>
+{% endif %}{% endif %}
+<form action="{% url 'pelican:import-article' site.urn %}" method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    <section>
+        <legend>Máte existující příspěvky napsané pro danou technologii? </legend>
+        <input type="file" name="posts" multiple>
+        <button type="submit">Importovat</button>
+    </section>
+</form>
 {% endblock %}

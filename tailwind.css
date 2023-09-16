@@ -15,6 +15,7 @@ nav a {
     display: inline-block;
     padding: 1.2em 1em;
     color: white;
+    text-decoration: none;
 }
 
 nav a:hover {
@@ -49,6 +50,10 @@ form ul {
     list-style: none;
 }
 
+legend {
+    display: block;
+}
+
 span.helptext {
     font-style: italic;
     font-size: smaller;
@@ -72,6 +77,7 @@ input[type="text"], textarea {
     font-size: 12pt;
     padding-left: 0.3rem;
     padding-right: 0.3rem;
+    min-width: 16em;
 }
 
 input[type="text"]:focus {

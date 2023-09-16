@@ -1,9 +1,10 @@
-import re
-import toml
+import io
 import pelican
 import pelican.paginator
+import re
 import shutil
 import subprocess
+import toml
 import urllib
 import zipfile
 
@@ -403,20 +404,24 @@ class Settings(models.Model):
             )
 
     def import_article(self, article: File, user: auth.User) -> core.Post:
-        metaLine = re.compile(r'^[a-zA-Z_]+:(.*)')
-        post = core.Post(site=self, author=user)
+        metaLine = re.compile(rb'^[a-zA-Z_]+:(.*)$')
+        content_buffer = io.StringIO()
+        content_from_now = False
+        post = core.Post(site=self.site, author=user, broadcast=False, lang=self.site.lang)
         post.title = article.name[:-3]  # strip the .md extension
         with article.open() as stream:
-            data = stream.read()
-            offset = 0
-            for line in data:
+            for line in stream:
+                if content_from_now:
+                    content_buffer.write(line.decode("utf-8"))
+                    continue
                 if metaLine.match(line):
-                    offset += len(line)
-                    key, value = line.split(":")
-                    key = key.lower()
-                    value = value.strip()
+                    key, value = line.split(b':')
+                    key = str(key.lower())
+                    value = value.decode("utf-8").strip()
                     if key == "title":
                         post.title = value
+                    elif key == "slug":
+                        post.slug = value
                     elif key == "date":
                         post.created = date.fromisoformat(value)
                     elif key == "updated":
@@ -424,18 +429,25 @@ class Settings(models.Model):
                     elif key == "status":
                         post.draft = (value.lower() == "draft")
                     elif key == "category":
-                        post.category = core.Category.objects.get_or_create(site=self, title=value, slug=slugify(value))
+                        value = value
+                        post.category = core.Category.objects.get_or_create(site=self.site, title=value, slug=slugify(value))
                     elif key == "summary":
                         post.description = value
+                    else:
+                        logger.info(f"Unrecognized key {key} for article {post.title}")
                 if len(line.strip()) == 0:
-                    post.content = data[offset+1:]
-                    break
-        found = core.Post.objects.filter(site=self, title=post.title).values('id')
+                    content_from_now = True
+                    continue
+            # endfor
+            post.content = content_buffer.getvalue()
+
+        found = core.Post.objects.filter(site=self.site, title=post.title).values('id', 'created')
         if len(found) == 1:
             logger.warn("Article {title} already exists - updating")
             post.id = found[0]['id']
-            post.save()
-
+            post.created = found[0]['created']
+        post.save()
+        return post
 
 
 class ThemeSettings(models.Model):

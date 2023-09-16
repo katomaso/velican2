@@ -1,13 +1,17 @@
 from typing import Any
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib import messages
 from django.db.models.query import QuerySet
 from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404, redirect
+from django.utils.translation import gettext as _
 from django.views import generic
 from django import forms
 
 from . import logger
 from .models import Settings, Theme, ThemeSettings
 from .forms import SettingsForm
+from velican2.core.views import SiteMixin
 
 
 class SettingsList(LoginRequiredMixin, generic.ListView):
@@ -17,24 +21,35 @@ class SettingsList(LoginRequiredMixin, generic.ListView):
         return Settings.objects.filter(site__admin=self.request.user)
 
 
-class SettingsDetail(LoginRequiredMixin, generic.UpdateView):
+class SettingsDetail(SiteMixin, generic.UpdateView):
     model = Settings
-    pk_url_kwarg = "id"
     form_class = SettingsForm
     template_name = "pelican/settings_detail.html"
 
+    def get_object(self, queryset: QuerySet[Any] = None) -> Settings:
+        return Settings.objects.get(site=self.site)
+    
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         return super().get_context_data(**kwargs,
                                         themes=Theme.objects.filter(image__isnull=False).exclude(image=""))
 
 
-class ImportArticle(LoginRequiredMixin, generic.View):
+class ImportArticle(SiteMixin, generic.View):
     model = Settings
-    pk_url_kwarg = "id"
 
-    def post(self):
-        for file in self.request.FILES:
-            self.object.import_article(file, self.request.user)
+    def get_object(self, queryset: QuerySet[Any] = None) -> Settings:
+        return Settings.objects.get(site=self.site)
+
+    def post(self, request, site:str):
+        pelican = self.get_object()
+        for file in request.FILES.getlist('posts'):
+            pelican.import_article(file, request.user)
+            messages.info(request, " ".join((_("File"), file.name, _("imported sucessfully"))))
+        # except Exception as e:
+        #     logger.error(type(e))
+        #     logger.error(e)
+        #     messages.error(request, _("Could not process file"))
+        return redirect(request.headers['Referer'])
 
 
 class ThemeList(LoginRequiredMixin, generic.ListView):

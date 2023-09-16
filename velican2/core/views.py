@@ -5,7 +5,6 @@ from io import BytesIO
 from datetime import date
 from typing import Any, Dict, Optional
 from django import http
-from django.db import models
 from django.shortcuts import render, get_object_or_404, redirect
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -87,11 +86,12 @@ class Site(SiteMixin, generic_views.DetailView):
 
     def get_object(self):
         return self.site
-    
+
     def get_context_data(self, *args, **kwargs):
         return super().get_context_data(
             *args,
-            posts = models.Post.objects.filter(site=self.site),
+            posts=models.Post.objects.filter(site=self.site),
+            last_deploy=models.Publish.objects.filter(site=self.site).order_by("-started").first(),
             **kwargs)
 
 
@@ -149,8 +149,14 @@ class Post(SiteMixin, edit_views.UpdateView):
     }
 
     def get_object(self) -> models.Post:
-        return self.post
+        return models.Post.objects.filter(id=self.kwargs['post'], site=self.site).first()
 
+    def get_initial(self) -> dict[str, Any]:
+        return dict(site=self.site)
+
+    def get_success_url(self) -> str:
+        return reverse('core:site', kwargs={'site': self.site.urn}) 
+ 
     def post(self, request: HttpRequest, *args: str, **kwargs: Any) -> HttpResponse:
         if self.image_upload_field in request.FILES:
             return self.upload_image(request)
@@ -202,15 +208,19 @@ class Images(SiteMixin, generic_views.View):
         return JsonResponse(images_url, safe=False)
 
 
-def publish(request: http.HttpRequest, site: str):
+class Publish(SiteMixin, generic_views.View):
     def as_bool(value: str):
-        return value.lower() in ("1", "true", "yes")
+        return value.lower() in ("1", "true", "yes", "checked")
+    
+    def post(self, request: http.HttpRequest, **kwargs):
+        publish = models.Publish(site=self.site)
+        if request.POST.get("post"):
+            publish.post = models.Post(id=int(request.POST['post']))
+        try:
+            publish.save()
+        finally:
+            return redirect("core:site", site=self.site)
 
-    return get_object_or_404(models.Site, urn=site).publish(
-        request.user,
-        force=as_bool(request.GET.get("force", "False")),
-        purge=as_bool(request.GET.get("purge", "False")),
-    )
 
 def render_static_page(request: http.HttpRequest):
     return render(request, Path(request.path).name)

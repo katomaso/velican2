@@ -77,7 +77,7 @@ LOGGING = {
     },
     "formatters": {
         "verbose": {
-            "format": "{name} {levelname} {asctime} {module} {message}",
+            "format": " {asctime} {levelname} ({name}) {message}",
             "style": "{",
         },
         "simple": {
@@ -111,7 +111,7 @@ LOGGING = {
             'propagate': False,
         },
         'pelican': {
-            'level': 'DEBUG' if DEBUG else 'INFO',
+            'level': 'ERROR', # 'DEBUG' if DEBUG else 'INFO',
             'handlers': ['console'],
             'propagate': False,
         },

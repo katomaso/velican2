@@ -9,7 +9,7 @@ from django.contrib.auth import models as auth
 from martor.fields import MartorFormField
 
 from . import logger
-from .models import Site, Post
+from .models import Site, Post, Publish
 from ..engines.pelican import models as pelican
 
 
@@ -17,7 +17,6 @@ class StartForm(forms.Form):
     title = forms.CharField(max_length=128)
     subtitle = forms.CharField(max_length=256, required=False)
     own_domain = forms.CharField(max_length=100, required=False)
-    # domain = forms.CharField(max_length=100)
     subdomain = forms.CharField(max_length=100, required=False)
     pelican_theme = forms.ChoiceField(choices=lambda: pelican.Theme.objects.all().values_list('name', 'name'), required=True)  # TODO: change to not-required once more engines are ready
 
@@ -60,10 +59,24 @@ class PostCreateForm(forms.ModelForm):
         fields = ("title", "lang", "description", 'site', 'author')
 
 
-
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ("title", "lang", "description", "punchline", "content", 'site', 'author')
-
+        fields = ("title", "lang", "draft", "description", "punchline", "content", 'author', 'broadcast')
+    action = forms.CharField(initial="save")
     content = MartorFormField()
+
+    def clean(self):
+        logger.debug(f"PostForm.cleaned_data['action']: {self.cleaned_data['action']}")
+        if self.cleaned_data['action'] == "publish":
+            self.cleaned_data['draft'] = False
+            self.publish = Publish(site=self.initial['site'])
+            self.publish.clean()
+        return super().clean()
+    
+    def save(self, commit=True):
+        instance = super().save(commit)
+        if hasattr(self, 'publish'):
+            self.publish.post = instance
+            self.publish.save()
+        return instance
