@@ -148,22 +148,31 @@ def write_page(pelican, page):
 
 
 def write_post_content(post, writer: io.TextIOBase): # post: core.Post
-    writer.write("Title: "); writer.write(post.title); writer.write("\n")
-    writer.write("Date: "); writer.write(str(post.created)); writer.write("\n")
-    writer.write("Author: "); writer.write(str(post.author)); writer.write("\n")
-    writer.write("Modified: "); writer.write(str(post.updated)); writer.write("\n")
-    writer.write("Slug: "); writer.write(str(post.slug)); writer.write("\n")
-    # writer.write("Authors: "); writer.write(str(post.author)); writer.write("\n")
+    metadata = {
+        "Title": post.title,
+        "Date": str(post.created),
+        "Author": str(post.author),
+        "Modified": str(post.updated),
+        "Slug": post.slug,
+        "Oid": str(post.id),  # original article ID
+        "Summary": post.description.replace("\n", "")
+    }
+
+    if post.translation_of:
+        metadata["Translation"] = "true"
+        metadata["Oid"] = str(post.translation_of.id)
     if post.heading:
-        writer.write("Heading: "), writer.write(post.heading.name); writer.write("\n")
+        metadata["Heading"] = post.heading.name
     if post.draft:
-        writer.write("Status: draft\n")
+        metadata["Status"] = "draft"
     if post.lang:
-        writer.write("Lang: "); writer.write(post.lang); writer.write("\n")
-    # writer.write("Tags: "); writer.write(str(post.created)); writer.write("\n")
+        metadata["Lang"] = post.lang
     if post.category:
-        writer.write("Category: "); writer.write(str(post.category)); writer.write("\n")
-    writer.write("Summary: "); writer.write(post.description.replace("\n", "")); writer.write("\n")
+        metadata["Category"] = str(post.category)
+    # writer.write("Tags: "); writer.write(str(post.created)); writer.write("\n")
+
+    for key, value in metadata.items:
+        writer.write(key); writer.write(": "); writer.write(value); writer.write("\n")
     writer.write("\n")
     writer.write(post.content)
 

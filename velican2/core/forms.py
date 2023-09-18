@@ -56,13 +56,13 @@ class StartForm(forms.Form):
 class PostCreateForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ("title", "lang", "description", 'site', 'author')
+        fields = ("title", "lang", "description", "translation_of", "author")
 
 
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ("title", "lang", "draft", "description", "punchline", "content", 'author', 'broadcast')
+        fields = ("title", "lang", "draft", "description", "punchline", "content", "author", "broadcast")
     action = forms.CharField(initial="save")
     content = MartorFormField()
 

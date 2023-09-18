@@ -41,7 +41,7 @@ class Start(LoginRequiredMixin, generic_views.FormView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse("core:add_post", site=self.object.urn)
+        return reverse("core:add-post", site=self.object.urn)
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         return super().get_context_data(
@@ -78,7 +78,7 @@ class PostMixin:
         return super().dispatch(request, *args, post=post, **kwargs)
     
     def get_context_data(self, *args, **kwargs):
-        return super().get_context_data(*args, **kwargs, site=self.site)
+        return super().get_context_data(*args, **kwargs, post=self.post)
 
 
 class Site(SiteMixin, generic_views.DetailView):
@@ -90,7 +90,7 @@ class Site(SiteMixin, generic_views.DetailView):
     def get_context_data(self, *args, **kwargs):
         return super().get_context_data(
             *args,
-            posts=models.Post.objects.filter(site=self.site),
+            posts=models.Post.objects.filter(site=self.site, translation_of__isnull=True),
             last_deploy=models.Publish.objects.filter(site=self.site).order_by("-started").first(),
             **kwargs)
 
@@ -118,14 +118,24 @@ class PostCreate(SiteMixin, edit_views.CreateView):
     form_class = forms.PostCreateForm
     template_name = "post-add.html"
 
+    # def get_context_data(self, *args, **kwargs):
+
+    def get_context_data(self, *args, **kwargs):
+        if self.request.GET.get("translation_of"):
+            kwargs.update(post=models.Post.objects.filter(site=self.site, pk=int(self.request.GET.get("translation_of"))).first())
+        return super().get_context_data(*args, **kwargs)
+        
     def get_initial(self):
-        return {'lang': self.site.lang, 'site': self.site, 'author': self.request.user}
+        return {'lang': self.site.lang, 'site': self.site}
 
     def form_valid(self, form):
         """If the form is valid, save the associated model."""
-        form.cleaned_data['site'] = self.site
-        form.cleaned_data['author'] = self.request.user
-        self.object = form.save()
+        self.object = form.save(commit=False)
+        self.object.site = self.site
+        self.object.author = self.request.user
+        if self.request.GET.get("translation_of"):
+            self.translation_of = models.Post.objects.filter(site=self.site, pk=int(self.request.GET["translation_of"])).first()
+        self.object.save()
         return super().form_valid(form)
 
     def get_success_url(self):

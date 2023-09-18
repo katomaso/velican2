@@ -121,7 +121,7 @@ class Site(models.Model):
         return super().delete(**kwargs)
 
     def absolutize(self, path):
-        return ("https://" if self.secure else "http://") + self.urn
+        return ("https://" if self.secure else "http://") + self.urn + "/" + path
 
     def can_add_content(self, user: auth.User):
         return self.admin == user or self.staff.contains(user)
@@ -249,6 +249,7 @@ class Post(Content):
     draft = models.BooleanField(default=True)
     category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)
     author = models.ForeignKey(auth.User, null=True, blank=True, on_delete=models.SET_NULL, db_index=False)
+    translation_of = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, db_index=False, related_name="translations")
     description = models.TextField()
     punchline = models.TextField(blank=True, help_text="Punchline for social media. Defaults to description.")
     broadcast = models.BooleanField(default=True, help_text="If the post should be published on all linked social media")
@@ -282,7 +283,7 @@ class Image(models.Model):
     """Images uploaded for the site. They will be sotred in MEDIA folder and most likely simply linked to the output directory."""
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     post = models.ForeignKey(Post, null=True, on_delete=models.SET_NULL)
-    slug = models.CharField(max_length=64, help_text="Slug of matching content - must not change during lifetime")
+    slug = models.CharField(max_length=64, help_text="Slug of matching content - must not change during its lifetime")
     name = models.CharField(max_length=32, null=True)
     image = models.ImageField(upload_to=content_image_upload)
 

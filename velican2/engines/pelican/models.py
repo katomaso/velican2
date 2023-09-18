@@ -343,6 +343,7 @@ class Settings(models.Model):
             'SITELOGO': "/" + Path(self.site.logo.name).name,
             'FEED_DOMAIN': self.site.absolutize("/"), # give the full URL for the root of the blog
             'MENUITEMS': core.Link.objects.filter(site=self.site).values_list("title", "url"),
+            'DEFAULT_LANG': self.site.lang,
         })
 
         if self.site.webmentions:

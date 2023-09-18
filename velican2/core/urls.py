@@ -10,7 +10,7 @@ urlpatterns = [
     path("sites/<str:site>/", views.Site.as_view(), name="site"),
     path("sites/<str:site>/publish/", views.Publish.as_view(), name="publish"),
     path("sites/<str:site>/images/", views.Images.as_view(), name="images"),
-    path("sites/<str:site>/post/add.html", views.PostCreate.as_view(), name="add_post"),
+    path("sites/<str:site>/post/add.html", views.PostCreate.as_view(), name="add-post"),
     path("sites/<str:site>/post/<int:post>/edit.html", views.Post.as_view(), name="post"),
     path("legal.html", views.render_static_page),
 ]

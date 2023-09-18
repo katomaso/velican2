@@ -2,12 +2,16 @@
 
 {% block "css" %}
 <style>
-    textarea[name="description"], textarea[name="punchline"] {
-        height: 4em;
-    }
-    .ui.secondary.pointing.menu.tab-martor-menu .martor-toolbar {
-        padding: 0;
-    }
+  textarea[name="description"], textarea[name="punchline"] {
+    height: 4em;
+  }
+  .ui.secondary.pointing.menu.tab-martor-menu .martor-toolbar {
+    padding: 0;
+  }
+  input[name="title"] {
+    font-size: 14pt;
+    margin-bottom: 1.5em;
+  }
 </style>
 {% endblock %}
 
@@ -17,87 +21,93 @@
 {% endblock %}
 
 {% block "main" %}
-<div class="container mx-auto">
-    <a href="{% url 'core:site' site %}" class="underline">&lt; Zpět na seznam článků</a>
-    <form role="form" method="POST" class="__post">{% csrf_token %}
-        {% if form.errors %}
-        {% for field in form %}
-            {% for error in field.errors %}
-                <div class="alert alert-danger">
-                    <strong>{{field.name}}: {{ error|escape }}</strong>
-                </div>
-            {% endfor %}
-        {% endfor %}
-        {% for error in form.non_field_errors %}
-            <div class="alert alert-danger">
-                <strong>{{ error|escape }}</strong>
-            </div>
-        {% endfor %}
-        {% endif %}
-        <section class="container">
-            <h1>Článek pro {{site.urn}}</h1>
-            <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
-            <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}}<br>
-            <label for="{{form.description.id_for_label}}">Shrnutí</label><br>
-            {{form.description}}
-        </section>
-        <section>
-            <image-explorer data-target="{{form.content.name}}" data-images-url="{% url 'core:images' site.urn %}"></image-explorer>
-            <label for="{{form.content.id_for_label}}">Text</label><br>
-            {{form.content}}
-            {{form.draft}} <label for="{{form.draft.id_for_label}}">Stále je to jen koncept</label><br><br> 
-            <button type="submit" name="action" value="save">Uložit</button>
-        </section>
-        <section>
-        <label for="{{form.punchline.id_for_label}}">Oznámení o článku na sociální</label><br>
-        {{form.punchline}}
-        <br>
-        <button type="submit" name="action" value="publish" class="mr-4">Publikovat</button>
-        {{form.broadcast}}
-        <label for="{{form.broadcast.id_for_label}}">Publikovat i na sociálních sítích?</label><br>
-        </section>
+<div class="container lg:w-1/2 mx-auto">
+<a href="{% url 'core:site' site %}" class="underline">&lt; Zpět na seznam článků</a>
+<form role="form" method="POST" class="__post">{% csrf_token %}
+  {% if form.errors %}
+  {% for field in form %}
+    {% for error in field.errors %}
+      <div class="alert alert-danger">
+        <strong>{{field.name}}: {{ error|escape }}</strong>
+      </div>
+    {% endfor %}
+  {% endfor %}
+  {% for error in form.non_field_errors %}
+    <div class="alert alert-danger">
+      <strong>{{ error|escape }}</strong>
+    </div>
+  {% endfor %}
+  {% endif %}
+  <section class="container">
+    <h1>{%if post.translation_of %}Překlad článku "{{post.translation_of}} ({{post.translation_of.lang}})"{% else %}{{post}}{% endif %}</h1>
+    <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
+    <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}} <a href="{% url 'core:add-post' site.urn %}?translation_of={{post.id}}">přidat překlad</a> <br>
+    <label for="{{form.description.id_for_label}}">Shrnutí</label><br>
+    {{form.description}}
+  </section>
+  <section>
+    <image-explorer data-target="{{form.content.name}}" data-images-url="{% url 'core:images' site.urn %}"></image-explorer>
+    <label for="{{form.content.id_for_label}}">Text</label><br>
+    {{form.content}}
+    {% if object.draft %}
+    {{form.draft}} <label for="{{form.draft.id_for_label}}">Stále je to jen koncept</label><br><br> 
+    <button type="submit" name="action" value="save">Uložit</button>
+    {% else %}
+    <button type="submit" name="action" value="save">Zveřejnit opravy</button>
+    {% endif %}
+  </section>
+  {% if object.draft %}
+  <section>
+    <label for="{{form.punchline.id_for_label}}">Oznámení o článku na sociální</label><br>
+    {{form.punchline}}
+    <br>
+    <button type="submit" name="action" value="publish" class="mr-4">Publikovat</button>
+    {{form.broadcast}}
+    <label for="{{form.broadcast.id_for_label}}">Publikovat i na sociálních sítích?</label><br>
+  </section>
+  {% endif %}
 </form>
 </div>
 {{ form.media }}
 
 <script>
 (function ($) {
-    if (!$) {
-        $ = django.jQuery;
-    }
-    var mainMartor = $('.main-martor')
-    var field_name = mainMartor.data('field-name');
-    var editorId = 'martor-' + field_name;
-    var editor = ace.edit(editorId);
+  if (!$) {
+    $ = django.jQuery;
+  }
+  var mainMartor = $('.main-martor')
+  var field_name = mainMartor.data('field-name');
+  var editorId = 'martor-' + field_name;
+  var editor = ace.edit(editorId);
 
-    /**
-     * Select an image from gallery and insert given link into the editro
-     */
-    var galleryToImageLink = function (editor) {
-        let img_expl = document.querySelector(`image-explorer[data-target=${field_name}]`);
-        img_expl.show((imageData) => {
-            var curpos = editor.getCursorPosition();
-            editor.session.insert(curpos, '![' + imageData.name + '](' + imageData.link + ') ');
-            editor.focus();
-            editor.selection.moveTo(
-                curpos.row,
-                curpos.column + imageData.name.length + 2
-            );
-        });
-    }
-
-    editor.commands.addCommand({
-        name: 'gallery',
-        bindKey: {win: 'Ctrl-G',  mac: 'Command-G'},
-        exec: galleryToImageLink,
-        readOnly: false, // false if this command should not apply in readOnly mode
-        // multiSelectAction: "forEach", optional way to control behavior with multiple cursors
-        // scrollIntoView: "cursor", control how cursor is scolled into view after the command
+  /**
+   * Select an image from gallery and insert given link into the editro
+   */
+  var galleryToImageLink = function (editor) {
+    let img_expl = document.querySelector(`image-explorer[data-target=${field_name}]`);
+    img_expl.show((imageData) => {
+      var curpos = editor.getCursorPosition();
+      editor.session.insert(curpos, '![' + imageData.name + '](' + imageData.link + ') ');
+      editor.focus();
+      editor.selection.moveTo(
+        curpos.row,
+        curpos.column + imageData.name.length + 2
+      );
     });
+  }
 
-    $('.markdown-image-link[data-field-name=' + field_name + ']').click(function () {
-        galleryToImageLink(editor);
-    });
+  editor.commands.addCommand({
+    name: 'gallery',
+    bindKey: {win: 'Ctrl-G',  mac: 'Command-G'},
+    exec: galleryToImageLink,
+    readOnly: false, // false if this command should not apply in readOnly mode
+    // multiSelectAction: "forEach", optional way to control behavior with multiple cursors
+    // scrollIntoView: "cursor", control how cursor is scolled into view after the command
+  });
+
+  $('.markdown-image-link[data-field-name=' + field_name + ']').click(function () {
+    galleryToImageLink(editor);
+  });
 })(jQuery);
 </script>
 {% endblock %}

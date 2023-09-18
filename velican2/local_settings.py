@@ -18,6 +18,7 @@ PELICAN_DEFAULT_SETTINGS = {
     'DELETE_OUTPUT_DIRECTORY': False,
     'CACHE_CONTENT': True, # cache generated files
     'LOAD_CONTENT_CACHE': True,
+    'ARTICLE_TRANSLATION_ID': 'oid',
 }
 
 # django-allauth specific settings

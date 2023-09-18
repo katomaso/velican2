@@ -1,14 +1,11 @@
 {% extends 'base.html' %}
 
-{% block "main" %}
-<div class="container mx-auto flex">
-    <ul>
-    {% for other_post in site.posts %}
-        <li>{{other_post}}</li>
-    {% endfor %}
-    </ul>
+{% block "content" %}
     <form role="form" method="POST" class="__post">{% csrf_token %}
-        <h1>Článek pro {{site.urn}}</h1>
+        {% if not post %}<h1>Článek pro {{site.urn}}</h1>{% else %}
+        <h1>Překlad článku {{post.title}}({{post.lang}})</h1>
+        <input type="hidden" name="{{form.translation_of.name}}" value="{{post.id}}">
+        {% endif %}
         <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
         <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}}<br>
         <label for="{{form.description.id_for_label}}">Shrnutí</label><br>
@@ -31,6 +28,5 @@
         </div>
     {% endfor %}
     {% endif %}
-</div>
 {{ form.media }}
 {% endblock %}

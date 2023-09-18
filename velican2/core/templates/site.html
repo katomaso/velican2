@@ -17,12 +17,12 @@ a {
 
 Počet příspěvků: {{posts.length}}<br>
 Počet odkazů: #TODO <br>
-<a href="{% url 'core:add_post' object.urn %}">Přidat příspěvěk</a>
+<a href="{% url 'core:add-post' object.urn %}">Přidat příspěvěk</a>
 
 <h2>Příspěvky</h2>
 <ul>
 {% for post in posts %}
-<li><a href="{% url 'core:post' site.urn post.id %}">{{post.title}}</a></li>
+<li><a href="{% url 'core:post' site.urn post.id %}">{{post.title}} ({{post.lang}})</a> překlady: {%for translation in post.translations.all %} <a href="{% url 'core:post' site.urn translation.id %}">{{translation.lang}}</a>{% endfor %}</li>
 {% endfor %}
 </ul>
 
