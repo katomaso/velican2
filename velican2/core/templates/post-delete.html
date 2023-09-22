@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block "content" %}
+<a href="{% url 'core:site' object.site.urn %}">zpět na doménu {{object.site.urn}}</a>
+
+<form action="" method="post">
+    {%csrf_token%}
+    <label>Opravdu smazat {{object}}?</label>
+    <button type="submit" name="action" value="delete">Ano, smazat</button>
+</form>
+
+{% endblock %}

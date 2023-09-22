@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block "content" %}
+<a href="{% url 'core:site' object.urn %}">zpět na doménu {{object.urn}}</a>
+<form action="" method="post">
+    {%csrf_token%}
+    <ul>{{form.as_ul}}</ul>
+    <button type="submit" name="action" value="save">Uložit</button>
+</form>
+
+{% endblock %}

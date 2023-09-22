@@ -31,19 +31,21 @@ class Engine(AppConfig):
     def render(self, site, post=None, page=None, **kwargs):
         """Produce a HTML output from the database. This might update /index.html and other files."""
         settings = self._get_settings(site)
-        if kwargs.get("force", False) and not (post or page):
+        settings.get_source_path().mkdir(exist_ok=True)
+        if post is not None:
+            write_post(settings, post)
+        elif page is not None:
+            write_page(settings, page)
+        elif kwargs.get("purge", False):
+            shutil.rmtree(settings.get_source_path())
+            settings.get_source_path().mkdir()
             # regenerate all content
             for post in site.posts:
                 write_post(settings, post)
             for page in site.pages:
                 write_page(settings, page)
-        if kwargs.get("purge", False):
             # remove all (stale) output
             shutil.rmtree(settings.get_output_path())
-        if post is not None:
-            write_post(settings, post)
-        if page is not None:
-            write_page(settings, page)
         settings.get_output_path().mkdir(exist_ok=True)
         if site.logo:
             logo_output_path = settings.get_output_path() / Path(site.logo.name).name
@@ -57,13 +59,13 @@ class Engine(AppConfig):
         settings = self._get_settings(site)
         if post is not None:
             logger.info("Deleting {post.site}/{post}")
-            settings.get_post_source_path(post).unlink()
-            settings.get_post_output_path(post).unlink()
+            settings.get_post_source_path(post).unlink(missing_ok=True)
+            settings.get_post_output_path(post).unlink(missing_ok=True)
             return
         if page is not None:
             logger.info("Deleting {page.site}/{page}")
-            settings.get_page_source_path(page).unlink()
-            settings.get_page_output_path(page).unlink()
+            settings.get_page_source_path(page).unlink(missing_ok=True)
+            settings.get_page_output_path(page).unlink(missing_ok=True)
             return
         shutil.rmtree(settings.get_output_path())
 
@@ -124,11 +126,16 @@ def on_post_save(instance, **kwargs): # instance: core.Post
 
 
 def write_post(pelican, post):
-    logger.info(f"Writing post {pelican.get_post_source_path(post)}")
-    with pelican.get_post_source_path(post).open("wt") as file:
+    post_source_path = pelican.get_post_source_path(post)
+    post_source_path.parent.mkdir(exist_ok=True)
+    logger.info(f"Writing post {post_source_path}")
+    with post_source_path.open("wt") as file:
         write_post_content(post, file)
+
+    post_output_path = pelican.get_post_output_path(post)
+    post_output_path.parent.mkdir(exist_ok=True)
     if post.heading:
-        shutil.copy2(post.heading.path, pelican.get_post_output_path(post).with_suffix(Path(post.heading.path).suffix))
+        shutil.copy2(post.heading.path, post_output_path.with_suffix(Path(post.heading.path).suffix))
 
 
 def on_page_save(instance, **kwargs): # instance: core.Page
@@ -140,11 +147,17 @@ def on_page_save(instance, **kwargs): # instance: core.Page
 
 
 def write_page(pelican, page):
-    logger.info(f"Writing page {pelican.get_page_source_path(page)}")
-    with pelican.get_page_source_path(page).open("wt") as file:
+    page_source_path = pelican.get_page_source_path(page)
+    page_source_path.parent.mkdir(exist_ok=True)
+
+    logger.info(f"Writing page {page_source_path}")
+    with page_source_path.open("wt") as file:
         write_page_content(page, file)
+    
+    page_output_path = pelican.get_page_output_path(page)
+    page_output_path.parent.mkdir(exist_ok=True)
     if page.heading:
-        shutil.copy2(page.heading.path, pelican.get_page_output_path(page).with_suffix(Path(page.heading.path).suffix))
+        shutil.copy2(page.heading.path, page_output_path.with_suffix(Path(page.heading.path).suffix))
 
 
 def write_post_content(post, writer: io.TextIOBase): # post: core.Post
@@ -171,7 +184,7 @@ def write_post_content(post, writer: io.TextIOBase): # post: core.Post
         metadata["Category"] = str(post.category)
     # writer.write("Tags: "); writer.write(str(post.created)); writer.write("\n")
 
-    for key, value in metadata.items:
+    for key, value in metadata.items():
         writer.write(key); writer.write(": "); writer.write(value); writer.write("\n")
     writer.write("\n")
     writer.write(post.content)

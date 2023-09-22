@@ -101,7 +101,11 @@ section {
 }
 
 .primary, button[type="submit"], input[type="submit"] {
-    @apply rounded bg-green-700 text-white px-8 py-3;
+    @apply rounded bg-green-700 text-white px-8 py-3 mt-3 no-underline inline-block;
+}
+
+.secondary, button[type="submit"].secondary, input[type="submit"].secondary {
+    @apply rounded bg-gray-300 text-gray-800 px-6 py-2 mt-3 no-underline inline-block;
 }
 
 .switch {

@@ -41,7 +41,7 @@ class Start(LoginRequiredMixin, generic_views.FormView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse("core:add-post", site=self.object.urn)
+        return reverse("core:post-add", site=self.object.urn)
 
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         return super().get_context_data(
@@ -68,8 +68,8 @@ class SiteMixin:
 class PostMixin:
     def dispatch(self, request, post:int, *args, **kwargs):
         try:
-            self.post = models.Post.objects.get(pk=post)
-            if self.post.site != self.site:
+            self._post = models.Post.objects.get(pk=post)
+            if self._post.site != self.site:
                logger.error(f"User {request.user} trying to access else's post {post}")
                raise models.Site.DoesNotExist()
         except models.Site.DoesNotExist:
@@ -78,7 +78,7 @@ class PostMixin:
         return super().dispatch(request, *args, post=post, **kwargs)
     
     def get_context_data(self, *args, **kwargs):
-        return super().get_context_data(*args, **kwargs, post=self.post)
+        return super().get_context_data(*args, **kwargs, post=self._post)
 
 
 class Site(SiteMixin, generic_views.DetailView):
@@ -93,6 +93,17 @@ class Site(SiteMixin, generic_views.DetailView):
             posts=models.Post.objects.filter(site=self.site, translation_of__isnull=True),
             last_deploy=models.Publish.objects.filter(site=self.site).order_by("-started").first(),
             **kwargs)
+
+
+class SiteEdit(SiteMixin, generic_views.UpdateView):
+    template_name = "site-edit.html"
+    form_class = forms.SiteEditForm
+
+    def get_object(self):
+        return self.site
+    
+    def get_success_url(self) -> str:
+        return reverse("core:site", kwargs={"site": self.site.urn})
 
 
 class Sites(LoginRequiredMixin, generic_views.ListView):
@@ -126,7 +137,7 @@ class PostCreate(SiteMixin, edit_views.CreateView):
         return super().get_context_data(*args, **kwargs)
         
     def get_initial(self):
-        return {'lang': self.site.lang, 'site': self.site}
+        return {'lang': self.site.lang, 'site': self.site, 'author': self.request.user}
 
     def form_valid(self, form):
         """If the form is valid, save the associated model."""
@@ -142,7 +153,17 @@ class PostCreate(SiteMixin, edit_views.CreateView):
         return reverse("core:post", kwargs=dict(site=self.site.urn, post=self.object.id))
 
 
-class Post(SiteMixin, edit_views.UpdateView):
+class PostDelete(SiteMixin, PostMixin, edit_views.DeleteView):
+    template_name = "post-delete.html"
+
+    def get_object(self):
+        return self._post
+
+    def get_success_url(self):
+        return reverse("core:site", kwargs=dict(site=self.site.urn))
+
+
+class Post(SiteMixin, PostMixin, edit_views.UpdateView):
     form_class = forms.PostForm
     template_name = "post.html"
     image_upload_field = 'markdown-image-upload'
@@ -159,7 +180,7 @@ class Post(SiteMixin, edit_views.UpdateView):
     }
 
     def get_object(self) -> models.Post:
-        return models.Post.objects.filter(id=self.kwargs['post'], site=self.site).first()
+        return self._post
 
     def get_initial(self) -> dict[str, Any]:
         return dict(site=self.site)
@@ -174,7 +195,7 @@ class Post(SiteMixin, edit_views.UpdateView):
 
     def upload_image(self, request):
         image_file = request.FILES[self.image_upload_field]
-        image_name = append_to_name(Path(image_file.name),  date.today().isoformat())
+        image_name = append_to_name(Path(image_file.name), date.today().isoformat())
         upload_dir = self.site.get_media_dir()
 
         if not upload_dir.exists():
@@ -223,7 +244,7 @@ class Publish(SiteMixin, generic_views.View):
         return value.lower() in ("1", "true", "yes", "checked")
     
     def post(self, request: http.HttpRequest, **kwargs):
-        publish = models.Publish(site=self.site)
+        publish = models.Publish(site=self.site, purge=bool(request.POST.get('purge', False)))
         if request.POST.get("post"):
             publish.post = models.Post(id=int(request.POST['post']))
         try:

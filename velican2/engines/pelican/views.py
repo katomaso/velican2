@@ -40,6 +40,9 @@ class ImportArticle(SiteMixin, generic.View):
     def get_object(self, queryset: QuerySet[Any] = None) -> Settings:
         return Settings.objects.get(site=self.site)
 
+    def get(self, request, site:str):
+        return redirect("core:site", site=site)
+
     def post(self, request, site:str):
         pelican = self.get_object()
         for file in request.FILES.getlist('posts'):

@@ -21,7 +21,7 @@
 {% endblock %}
 
 {% block "main" %}
-<div class="container lg:w-1/2 mx-auto">
+<div class="container lg:w-2/3 mx-auto">
 <a href="{% url 'core:site' site %}" class="underline">&lt; Zpět na seznam článků</a>
 <form role="form" method="POST" class="__post">{% csrf_token %}
   {% if form.errors %}
@@ -41,7 +41,8 @@
   <section class="container">
     <h1>{%if post.translation_of %}Překlad článku "{{post.translation_of}} ({{post.translation_of.lang}})"{% else %}{{post}}{% endif %}</h1>
     <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
-    <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}} <a href="{% url 'core:add-post' site.urn %}?translation_of={{post.id}}">přidat překlad</a> <br>
+    <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}} <a href="{% url 'core:post-add' site.urn %}?translation_of={{post.id}}">přidat překlad</a> <br>
+    {% if post.created %}<label for="created">Uveřejněno</label>{{post.created}}<br>{% endif %}
     <label for="{{form.description.id_for_label}}">Shrnutí</label><br>
     {{form.description}}
   </section>
@@ -50,11 +51,12 @@
     <label for="{{form.content.id_for_label}}">Text</label><br>
     {{form.content}}
     {% if object.draft %}
-    {{form.draft}} <label for="{{form.draft.id_for_label}}">Stále je to jen koncept</label><br><br> 
-    <button type="submit" name="action" value="save">Uložit</button>
+    <button type="submit" name="action" value="save" class="mr-2">Uložit</button>
+    {{form.draft}} <label for="{{form.draft.id_for_label}}">Stále je to jen koncept</label>
     {% else %}
     <button type="submit" name="action" value="save">Zveřejnit opravy</button>
     {% endif %}
+    <a href="{% url 'core:post-delete' site.urn post.id %}" class="secondary float-right">Odstranit</a>
   </section>
   {% if object.draft %}
   <section>
@@ -65,6 +67,16 @@
     {{form.broadcast}}
     <label for="{{form.broadcast.id_for_label}}">Publikovat i na sociálních sítích?</label><br>
   </section>
+  {% else %}
+  {% if post.broadcast %}
+  <section>
+    <legend>Sociální sítě</legend>
+    Fediverse: <a href="@moje.localhost/{{post.slug}}">@moje.localhost/{{post.slug}}</a><br>
+    Facebook: publikováno<br>
+    Instagram: čeká<br>
+    TODO<br>
+  </section>
+  {% endif %}
   {% endif %}
 </form>
 </div>

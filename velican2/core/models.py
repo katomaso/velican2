@@ -24,8 +24,8 @@ class UpdateException(Exception):
     pass
 
 LANG_CHOICES = (
-    ("cs-cz", "cs"),
-    ("en-us", "en"),
+    ("cs", "cs"),
+    ("en", "en"),
 )
 
 
@@ -47,7 +47,7 @@ class Site(models.Model):
                                        RegexValidator(regex=r'[^\./]$', message=_("URN must not end with dot or slash"))))
     admin = models.ForeignKey(auth.User, on_delete=models.CASCADE, related_name="+")
     staff = models.ManyToManyField(auth.User, blank=True)
-    lang = models.CharField(max_length=48, choices=LANG_CHOICES, default=settings.LANGUAGE_CODE)
+    lang = models.CharField(max_length=2, choices=LANG_CHOICES, default=settings.LANGUAGE_CODE[0:2])
     timezone = models.CharField(max_length=128, default=settings.TIME_ZONE)
     secure = models.BooleanField(default=True, help_text="The site is served via secured connection https")
 
@@ -69,11 +69,11 @@ class Site(models.Model):
     instagram = models.CharField(max_length=128, null=True, blank=True)
     fediverse = models.CharField(max_length=128, null=True, blank=True)
 
-    publish_to_facebook = models.BooleanField(default=False)
-    publish_to_instagram = models.BooleanField(default=False)
-    publish_to_twitter = models.BooleanField(default=False)
-    publish_to_linkedin = models.BooleanField(default=False)
-    publish_to_fediverse = models.BooleanField(default=False)
+    # publish_to_facebook = models.BooleanField(default=False)
+    # publish_to_instagram = models.BooleanField(default=False)
+    # publish_to_twitter = models.BooleanField(default=False)
+    # publish_to_linkedin = models.BooleanField(default=False)
+    # publish_to_fediverse = models.BooleanField(default=False)
 
     webmentions = models.BooleanField(default=False, help_text="Should your site use webmentions")
     webmentions_external = models.CharField(max_length=256, blank=True, null=True, help_text="URL of an external webmentions service (optional). Leave empty for the builtin service.")
@@ -184,8 +184,8 @@ class Content(models.Model):
     slug = models.CharField(max_length=128, validators=(validate_unicode_slug,))
     lang = models.CharField(max_length=5, choices=LANG_CHOICES)
     content = models.TextField()
-    created = models.DateTimeField()
-    updated = models.DateTimeField()
+    created = models.DateTimeField(null=True, blank=True)
+    updated = models.DateTimeField(null=True, blank=True)
     heading = models.ImageField(blank=True, null=True, upload_to=content_heading_upload)
     updated_count = models.IntegerField(default=0, blank=True, help_text="How many times was the content updated")
     updated_words = models.IntegerField(default=0, blank=True, help_text="How many words were changed during its lifespan")
@@ -210,10 +210,9 @@ class Content(models.Model):
     def save(self, user=None, **kwargs):
         if user and not self.can_edit(user):
             raise PermissionError("You don't have edit rights on this")
-        now = datetime.now()
-        self.updated = now
+        if not self.created:
+            self.updated = None
         if not self.id:
-            self.created = now
             self.updated_words = self.content.count(" ")
         else:
             self.updated_count += 1

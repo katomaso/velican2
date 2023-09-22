@@ -212,7 +212,7 @@ class Theme(models.Model):
 class Settings(models.Model):
     POST_URL_TEMPLATES = (
         ('{slug}.html', f"<{_('slug')}>.html"),
-        ('{slug}/index.html', f"<{_('slug')}>/index.html"),
+        ('{lang}/{slug}.html', f"<lang>/<{_('slug')}>.html"),
         ('{date:%Y}/{slug}.html', f"<{_('year')}>/<{_('slug')}>.html"),
         ('{date:%Y}/{date:%b}/{slug}.html', f"<{_('year')}>/<{_('month')}>/<{_('slug')}>.html"),
         ('{category}/{slug}.html', f"<{_('author')}>/<{_('slug')}>.html"),
@@ -258,12 +258,7 @@ class Settings(models.Model):
     def save(self, **kwargs):
         if self.theme is None:
             self.theme = Theme.objects.all().first()
-            super().save(**kwargs) # create all relations that self.conf later uses
-        conf = self.conf
-        Path(conf["PATH"]).mkdir(exist_ok=True, parents=True)
-        Path(conf["PATH"], conf['PAGE_PATHS'][0]).mkdir(exist_ok=True)
-        Path(conf["PATH"], conf['ARTICLE_PATHS'][0]).mkdir(exist_ok=True)
-        Path(conf["OUTPUT_PATH"]).mkdir(exist_ok=True, parents=True)
+        return super().save(**kwargs) # create all relations that self.conf later uses
 
     def delete(self, **kwargs):
         shutil.rmtree(self.get_source_path())
@@ -408,16 +403,15 @@ class Settings(models.Model):
         metaLine = re.compile(rb'^[a-zA-Z_]+:(.*)$')
         content_buffer = io.StringIO()
         content_from_now = False
-        post = core.Post(site=self.site, author=user, broadcast=False, lang=self.site.lang)
+        post = core.Post(site=self.site, author=user, broadcast=False, lang=self.site.lang, draft=False)
         post.title = article.name[:-3]  # strip the .md extension
         with article.open() as stream:
             for line in stream:
                 if content_from_now:
                     content_buffer.write(line.decode("utf-8"))
-                    continue
-                if metaLine.match(line):
+                elif metaLine.match(line):
                     key, value = line.split(b':')
-                    key = str(key.lower())
+                    key = key.decode("utf-8").lower().strip()
                     value = value.decode("utf-8").strip()
                     if key == "title":
                         post.title = value
@@ -431,14 +425,15 @@ class Settings(models.Model):
                         post.draft = (value.lower() == "draft")
                     elif key == "category":
                         value = value
-                        post.category = core.Category.objects.get_or_create(site=self.site, title=value, slug=slugify(value))
+                        post.category, _ = core.Category.objects.get_or_create(site=self.site, name=value, slug=slugify(value))
                     elif key == "summary":
                         post.description = value
                     else:
                         logger.info(f"Unrecognized key {key} for article {post.title}")
-                if len(line.strip()) == 0:
+                elif len(line.strip()) == 0:
                     content_from_now = True
-                    continue
+                else:
+                    post.description += line.decode("utf-8")
             # endfor
             post.content = content_buffer.getvalue()
 

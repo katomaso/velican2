@@ -14,21 +14,30 @@ a {
 
 {% block "content" %}
 <h1>Doména {{object.urn}}</h1>
-
+<a href="{% url 'core:site-edit' object.urn %}">Upravit</a><br>
 Počet příspěvků: {{posts.length}}<br>
 Počet odkazů: #TODO <br>
-<a href="{% url 'core:add-post' object.urn %}">Přidat příspěvěk</a>
+<a href="{% url 'core:post-add' object.urn %}" class="primary my-4">Přidat příspěvěk</a>
 
-<h2>Příspěvky</h2>
+<h2 class="mt-2">Příspěvky</h2>
 <ul>
 {% for post in posts %}
 <li><a href="{% url 'core:post' site.urn post.id %}">{{post.title}} ({{post.lang}})</a> překlady: {%for translation in post.translations.all %} <a href="{% url 'core:post' site.urn translation.id %}">{{translation.lang}}</a>{% endfor %}</li>
 {% endfor %}
 </ul>
+<form action="{% url 'pelican:import-article' site.urn %}" method="POST" enctype="multipart/form-data">
+    <h3>Importovat články</h3>
+    {% csrf_token %}
+    <section>
+        <legend>Máte existující příspěvky napsané pro danou technologii? </legend>
+        <input type="file" name="posts" multiple>
+        <button type="submit" class="secondary">Importovat</button>
+    </section>
+</form
 
 <h2>Technologie</h2>
 Vykreslovač: <a href="{{object.get_engine_url}}">{{object.engine}}</a><br>
-Nasazovač: {{object.deployer}}<br>
+Server: {{object.deployer}}<br>
 {% if last_deploy %}
 Poslední nasazení
 {% if last_deploy.finished %}
@@ -38,16 +47,14 @@ Poslední nasazení
 {% else %}
     probíhá od {{last_deploy.started}} <a href="{% url 'core:site' site=site.urn %}">obnovit</a>
 {% endif %}
-{% if last_deploy.success == False %}<form action="{% url 'core:publish' object.urn %}" method="post">
-    <input type="hidden" name="post" value="{{post.id}}">{% csrf_token %}
-    <button name="action" type="submit" value="publish">Zkusit znovu</button></form>
-{% endif %}{% endif %}
-<form action="{% url 'pelican:import-article' site.urn %}" method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
-    <section>
-        <legend>Máte existující příspěvky napsané pro danou technologii? </legend>
-        <input type="file" name="posts" multiple>
-        <button type="submit">Importovat</button>
-    </section>
+<form action="{% url 'core:publish' object.urn %}" method="post">{% csrf_token %}
+    {% if last_deploy.success == False %}
+    <input type="hidden" name="post" value="{{post.id}}">
+    <button name="action" type="submit" value="publish">Zkusit znovu</button>
+    {% else %}
+    <button name="action" type="submit" value="publish">Nasadit</button>
+    <input type="checkbox" name="purge" id="purge" class="mx-2"><label for="purge">pročistit a přegenerovat vše</label>
+    {%endif%}
 </form>
+{% endif %}
 {% endblock %}

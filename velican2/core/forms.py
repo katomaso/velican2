@@ -1,4 +1,5 @@
 from typing import Any, Dict
+from datetime import date
 from django import forms
 
 from django.core.exceptions import ValidationError
@@ -53,21 +54,27 @@ class StartForm(forms.Form):
         return site
 
 
+class SiteEditForm(forms.ModelForm):
+    class Meta:
+        model = Site
+        exclude = ("urn", "admin", "staff")
+
+
 class PostCreateForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ("title", "lang", "description", "translation_of", "author")
+        fields = ("title", "lang", "description", "translation_of")
 
 
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ("title", "lang", "draft", "description", "punchline", "content", "author", "broadcast")
+        fields = ("title", "lang", "draft", "description", "punchline", "content", "broadcast", "updated")
     action = forms.CharField(initial="save")
     content = MartorFormField()
 
     def clean(self):
-        logger.debug(f"PostForm.cleaned_data['action']: {self.cleaned_data['action']}")
+        self.cleaned_data['updated'] = date.today()
         if self.cleaned_data['action'] == "publish":
             self.cleaned_data['draft'] = False
             self.publish = Publish(site=self.initial['site'])
@@ -78,5 +85,7 @@ class PostForm(forms.ModelForm):
         instance = super().save(commit)
         if hasattr(self, 'publish'):
             self.publish.post = instance
+            instance.created = date.today()
+            instance.save()
             self.publish.save()
         return instance
