@@ -99,6 +99,9 @@ class Site(models.Model):
     def pages(self):
         return Page.objects.all().filter(site=self)
 
+    def as_dirname(self):
+        return self.urn.replace("/", "#")
+
     def get_engine(self):
         return engines.get_engine(self.engine)
 

@@ -1,9 +1,8 @@
-import io
 import json
 
 from io import BytesIO
 from datetime import date
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from django import http
 from django.shortcuts import render, get_object_or_404, redirect
 from django.conf import settings
@@ -88,10 +87,13 @@ class Site(SiteMixin, generic_views.DetailView):
         return self.site
 
     def get_context_data(self, *args, **kwargs):
+        from velican2.exporters.git import models as git 
         return super().get_context_data(
             *args,
-            posts=models.Post.objects.filter(site=self.site, translation_of__isnull=True),
+            posts=models.Post.objects.filter(site=self.site, translation_of__isnull=True, draft=False)[:5],
+            drafts=models.Post.objects.filter(site=self.site, translation_of__isnull=True, draft=True)[:15],
             last_deploy=models.Publish.objects.filter(site=self.site).order_by("-started").first(),
+            git_exporter=git.Settings.objects.filter(site=self.site).first(),
             **kwargs)
 
 
@@ -135,7 +137,7 @@ class PostCreate(SiteMixin, edit_views.CreateView):
         if self.request.GET.get("translation_of"):
             kwargs.update(post=models.Post.objects.filter(site=self.site, pk=int(self.request.GET.get("translation_of"))).first())
         return super().get_context_data(*args, **kwargs)
-        
+
     def get_initial(self):
         return {'lang': self.site.lang, 'site': self.site, 'author': self.request.user}
 

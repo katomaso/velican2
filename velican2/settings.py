@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'velican2.engines.pelican',
     'velican2.deployers.aws',
     'velican2.deployers.caddy',
+    'velican2.exporters.git',
 
     'allauth',
     'allauth.account',

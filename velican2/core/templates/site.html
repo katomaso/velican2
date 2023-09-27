@@ -9,22 +9,41 @@
 a {
     text-decoration: underline;
 }
+h2 {
+    margin-top: 2em;
+}
+h3 {
+    margin-top: 0.2em;
+}
 </style>
 {% endblock %}
 
 {% block "content" %}
-<h1>Doména {{object.urn}}</h1>
-<a href="{% url 'core:site-edit' object.urn %}">Upravit</a><br>
+<h1>Doména {{site.urn}}</h1>
+<a href="{% url 'core:site-edit' site.urn %}">Upravit</a><br>
 Počet příspěvků: {{posts.length}}<br>
 Počet odkazů: #TODO <br>
-<a href="{% url 'core:post-add' object.urn %}" class="primary my-4">Přidat příspěvěk</a>
 
 <h2 class="mt-2">Příspěvky</h2>
+<a href="{% url 'core:post-add' object.urn %}" class="primary my-4">Přidat příspěvěk</a>
+<h3>Rozepsané</h3>
+<ul>
+{% for draft in drafts %}
+<li><a href="{% url 'core:post' site.urn draft.id %}">{{draft.title}} ({{draft.lang}})</a> překlady: {%for translation in draft.translations.all %} <a href="{% url 'core:post' site.urn translation.id %}">{{translation.lang}}</a>{% endfor %}</li>
+{% endfor %}
+</ul>
+
+<h3>Poslední články</h3>
 <ul>
 {% for post in posts %}
 <li><a href="{% url 'core:post' site.urn post.id %}">{{post.title}} ({{post.lang}})</a> překlady: {%for translation in post.translations.all %} <a href="{% url 'core:post' site.urn translation.id %}">{{translation.lang}}</a>{% endfor %}</li>
 {% endfor %}
 </ul>
+
+
+<h2>Technologie</h2>
+<h3>Vykreslování</h3>
+<strong>{{object.engine}}</strong>: <a href="{{object.get_engine_url}}">nastavení</a><br>
 <form action="{% url 'pelican:import-article' site.urn %}" method="POST" enctype="multipart/form-data">
     <h3>Importovat články</h3>
     {% csrf_token %}
@@ -33,11 +52,12 @@ Počet odkazů: #TODO <br>
         <input type="file" name="posts" multiple>
         <button type="submit" class="secondary">Importovat</button>
     </section>
-</form
+</form>
 
-<h2>Technologie</h2>
-Vykreslovač: <a href="{{object.get_engine_url}}">{{object.engine}}</a><br>
-Server: {{object.deployer}}<br>
+
+
+<h3>Server</h3>
+<strong>{{site.deployment}}</strong>: <a href="#">nastavení (TODO)</a><br>
 {% if last_deploy %}
 Poslední nasazení
 {% if last_deploy.finished %}
@@ -57,4 +77,19 @@ Poslední nasazení
     {%endif%}
 </form>
 {% endif %}
+
+
+<h3>Export</h3>
+{% if not git_exporter %}
+<form action="{% url 'git:connect' site %}" method="post">{% csrf_token %}
+<label for="git-repository">Propojit s GIT repozitářem:</label><input type="text" name="repository" id="git-repository"><br>
+<label for="git-username">Uživatelské jméno:</label><input type="text" name="username" id="git-username"><br>
+<label for="git-password">Heslo/Token:</label><input type="password" name="password" id="git-password"><br>
+<input type="submit" name="action" value="Propojit" class="secondary">
+</form>
+{% else %}
+Exportujeme vaše soubory do git repozitáře {{git_exporter.repository}}
+{% endif %}
+
 {% endblock %}
+

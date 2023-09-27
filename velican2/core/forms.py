@@ -48,7 +48,7 @@ class StartForm(forms.Form):
         site = Site.objects.create(**site_kwargs)
 
         if data.get('pelican_theme'):
-            pelican = pelican.Settings.objects.get_or_create(site=site)
+            pelican, _ = pelican.Settings.objects.get_or_create(site=site)
             pelican.theme = pelican.Theme.objects.get(name=data.get('pelican_theme'))
             pelican.save()
         return site
@@ -63,7 +63,7 @@ class SiteEditForm(forms.ModelForm):
 class PostCreateForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ("title", "lang", "description", "translation_of")
+        fields = ("title", "lang", "description", "category", "translation_of")
 
 
 class PostForm(forms.ModelForm):

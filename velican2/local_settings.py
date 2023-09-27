@@ -49,8 +49,10 @@ SOCIAL_AUTH_TWITTER_OAUTH2_SECRET = 'OpOw6i3W89q9oVfz9V0qLDWkUkPdt2hxmiIwghWNP3D
 # set to None or an empty string to disable caddy deployment
 CADDY_URL = os.getenv("CADDY_URL", "http://localhost:2019")
 
-AWS_KEY=os.getenv("AWS_KEY", "")
-AWS_SECRET=os.getenv("AWS_SECRET", "")
+AWS_KEY = os.getenv("AWS_KEY", "")
+AWS_SECRET = os.getenv("AWS_SECRET", "")
+
+GIT_REPO_DIR = Path(os.getenv("GIT_DIR", ROOT_DIR / "runtime/git"))
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.1/topics/i18n/

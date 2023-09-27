@@ -22,6 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('allauth.urls')),
     path('pelican/', include('velican2.engines.pelican.urls')),
+    path('git/', include('velican2.exporters.git.urls')),
     path('', include('velican2.core.urls', namespace="core")),
     path('martor/', include('martor.urls')),
 ]
