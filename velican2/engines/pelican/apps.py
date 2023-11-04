@@ -69,19 +69,34 @@ class Engine(AppConfig):
             return
         shutil.rmtree(settings.get_output_path())
 
+    def get_source_path(self, site):
+        """Get the path where rendered HTML files are written."""
+        settings = self._get_settings(site)
+        return settings.get_source_path()
+
+    def get_page_source_path(self, page):
+        """Get the path to given page."""
+        settings = self._get_settings(page.site)
+        return settings.get_page_source_path(page)
+
+    def get_post_source_path(self, post):
+        """Get the path to given post."""
+        settings = self._get_settings(post.site)
+        return settings.get_post_source_path(post)
+
     def get_output_path(self, site):
         """Get the path where rendered HTML files are written."""
         settings = self._get_settings(site)
         return settings.get_output_path()
 
-    def get_output_page_path(self, site, page):
+    def get_page_output_path(self, page):
         """Get the path to given page."""
-        settings = self._get_settings(site)
+        settings = self._get_settings(page.site)
         return settings.get_page_output_path(page)
 
-    def get_output_post_path(self, site, post):
+    def get_post_output_path(self, post):
         """Get the path to given post."""
-        settings = self._get_settings(site)
+        settings = self._get_settings(post.site)
         return settings.get_post_output_path(post)
 
     def get_settings_url(self, site) -> str:

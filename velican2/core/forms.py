@@ -10,7 +10,7 @@ from django.contrib.auth import models as auth
 from martor.fields import MartorFormField
 
 from . import logger
-from .models import Site, Post, Publish
+from .models import Category, Site, Post, Publish
 from ..engines.pelican import models as pelican
 
 
@@ -66,6 +66,12 @@ class PostCreateForm(forms.ModelForm):
         fields = ("title", "lang", "description", "category", "translation_of")
 
 
+class CategoryCreateForm(forms.ModelForm):
+    class Meta:
+        model = Category
+        fields = ("name", )
+
+
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
@@ -84,8 +90,7 @@ class PostForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit)
         if hasattr(self, 'publish'):
+            instance.publish(commit=True)
             self.publish.post = instance
-            instance.created = date.today()
-            instance.save()
             self.publish.save()
         return instance

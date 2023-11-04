@@ -88,7 +88,8 @@ Poslední nasazení
 <input type="submit" name="action" value="Propojit" class="secondary">
 </form>
 {% else %}
-Exportujeme vaše soubory do git repozitáře {{git_exporter.repository}}
+Exportujeme vaše soubory do git repozitáře {{git_exporter.repository}}<br>
+Poslední export: {{git_exporter.last_sync}}{%if git_exporter.error%}❌ {{git_exporter.error}}{%else%}✅{%endif%}<br>
 {% endif %}
 
 {% endblock %}

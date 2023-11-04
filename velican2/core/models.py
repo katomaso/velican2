@@ -187,7 +187,9 @@ class Content(models.Model):
     slug = models.CharField(max_length=128, validators=(validate_unicode_slug,))
     lang = models.CharField(max_length=5, choices=LANG_CHOICES)
     content = models.TextField()
-    created = models.DateTimeField(null=True, blank=True)
+    timestamp = models.DateTimeField() # timestamp on each save
+    created = models.DateTimeField(null=True, blank=True, auto_now_add=True)
+    published = models.DateTimeField(null=True, blank=True)
     updated = models.DateTimeField(null=True, blank=True)
     heading = models.ImageField(blank=True, null=True, upload_to=content_heading_upload)
     updated_count = models.IntegerField(default=0, blank=True, help_text="How many times was the content updated")
@@ -202,8 +204,8 @@ class Content(models.Model):
     def clean(self):
         if self.pk: # model aready exists
             prev = self.__class__.objects.get(pk=self.pk)
-            logger.debug(f"prev.updated {prev.updated} MUST BE <= {self.updated}")
-            if prev.updated > self.updated:
+            logger.debug(f"prev.timestamp {prev.timestamp} MUST BE <= {self.timestamp}")
+            if prev.timestamp > self.timestamp:
                 raise ValidationError("You are editing an outdated version")
         return super().clean()
 
@@ -213,7 +215,7 @@ class Content(models.Model):
     def save(self, user=None, **kwargs):
         if user and not self.can_edit(user):
             raise PermissionError("You don't have edit rights on this")
-        if not self.created:
+        if not self.published:
             self.updated = None
         if not self.id:
             self.updated_words = self.content.count(" ")
@@ -221,7 +223,13 @@ class Content(models.Model):
             self.updated_count += 1
         if not self.slug:
             self.slug = slugify(self.title)
+        self.timestamp = datetime.utcnow()
         super().save(**kwargs)
+
+    def publish(self, commit=True):
+        self.published = datetime.now()
+        if commit:
+            return self.save()
 
 
 class Page(Content):
@@ -276,6 +284,10 @@ class Post(Content):
 
     def get_url(self, absolute=True):
         return self.site.get_engine().get_post_url(self.site, self, absolute=absolute)
+    
+    def publish(self, commit=True):
+        self.draft = False
+        return super().publish(commit)
 
 
 def content_image_upload(self, filename):

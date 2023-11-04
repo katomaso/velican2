@@ -13,7 +13,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.urls import reverse
 from django.views import generic as generic_views
-from django.views.generic import edit as edit_views 
+from django.views.generic import edit as edit_views
 from django.utils.translation import gettext as _
 from pathlib import Path
 
@@ -75,7 +75,7 @@ class PostMixin:
             messages.info(request, _("Post does not exists"))
             return redirect("core:start")
         return super().dispatch(request, *args, post=post, **kwargs)
-    
+
     def get_context_data(self, *args, **kwargs):
         return super().get_context_data(*args, **kwargs, post=self._post)
 
@@ -153,6 +153,27 @@ class PostCreate(SiteMixin, edit_views.CreateView):
 
     def get_success_url(self):
         return reverse("core:post", kwargs=dict(site=self.site.urn, post=self.object.id))
+
+
+class CategoryCreate(SiteMixin, edit_views.CreateView):
+    form_class = forms.CategoryCreateForm
+    template_name = "category-add.html"
+
+    # def get_context_data(self, *args, **kwargs):
+
+    def get_initial(self):
+        return {'site': self.site}
+
+    def form_valid(self, form):
+        """If the form is valid, save the associated model."""
+        self.object = form.save(commit=False)
+        self.object.site = self.site
+        self.object.author = self.request.user
+        self.object.save()
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("core:post-add", kwargs=dict(site=self.site.urn))
 
 
 class PostDelete(SiteMixin, PostMixin, edit_views.DeleteView):

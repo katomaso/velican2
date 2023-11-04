@@ -8,6 +8,7 @@
         {% endif %}
         <label for="{{form.title.id_for_label}}">Nadpis</label>{{form.title}}<br>
         <label for="{{form.lang.id_for_label}}">Jazyk</label>{{form.lang}}<br>
+        <label for="{{form.category.id_for_label}}">Kategorie</label>{{form.category}}{% if site.admin == user %}<a href="{% url 'core:category-add' site=site.urn %}" class="secondary ml-5">přidat kategorii</a>{%endif%}<br>
         <label for="{{form.description.id_for_label}}">Shrnutí</label><br>
         {{form.description}}
         <br>

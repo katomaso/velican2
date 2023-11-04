@@ -377,7 +377,10 @@ class Settings(models.Model):
         return Path(self.conf['PATH'], self.conf['PAGE_PATHS'][0], page.slug).with_suffix(".md")
 
     def get_post_source_path(self, post: core.Post):
-        return Path(self.conf['PATH'], self.conf['ARTICLE_PATHS'][0], post.slug).with_suffix(".md")
+        return Path(self.conf['PATH'], 
+                    self.conf['ARTICLE_PATHS'][0], 
+                    str(post.category or "").lower(), 
+                    post.slug if post.slug.startswith("2") else f"{post.created.year}-{post.slug}").with_suffix(".md")
 
     def get_page_output_path(self, page: core.Page):
         return Path(self.conf['OUTPUT_PATH'], self.get_page_url(page))
